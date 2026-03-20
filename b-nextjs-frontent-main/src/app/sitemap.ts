@@ -9,6 +9,8 @@ import { getManyModels } from '@/lib/query/get-many-models'
 import { toUrlSlug } from '@/lib/transform'
 import type { MetadataRoute } from 'next'
 
+export const dynamic = 'force-dynamic'
+
 const baseUrl = process.env.PAYLOAD_URL as string
 
 const common: MetadataRoute.Sitemap = [

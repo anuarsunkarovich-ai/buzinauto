@@ -4,6 +4,8 @@ import { getPayload } from 'payload'
 import { SlugCollectionAlias } from '@/lib/dictionaries/slug-collection.dictionary'
 import { toUrlSlug } from '@/lib/transform'
 
+export const dynamic = 'force-dynamic'
+
 const baseUrl = process.env.PAYLOAD_URL as string
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
