@@ -1,0 +1,90 @@
+stages:
+  - build
+  - deploy
+
+build_job:
+  stage: build
+  tags:
+    - docker
+  variables:
+    IMAGE_NAME: '$DOCKER_REGISTRY/$CI_PROJECT_NAME:$CI_COMMIT_REF_NAME'
+  script:
+    - echo "Building image $IMAGE_NAME for branch $CI_COMMIT_REF_NAME"
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD $DOCKER_REGISTRY
+    - curl -v https://$DOCKER_REGISTRY/v2/ || echo "Registry not accessible"
+    - |
+      if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
+        echo "$ENV_CONFIG_PROD" > .env
+        echo "Using production environment config"
+      else
+        echo "$ENV_CONFIG_DEV" > .env
+        echo "Using development environment config"
+      fi
+    - docker build -t $IMAGE_NAME --build-arg ENV_FILE=.env .
+    - docker push $IMAGE_NAME
+    - echo "Build and push successful!"
+  only:
+    - main
+    - develop
+
+deploy_job:
+  stage: deploy
+  tags:
+    - docker
+  variables:
+    IMAGE_NAME: '$DOCKER_REGISTRY/$CI_PROJECT_NAME:$CI_COMMIT_REF_NAME'
+    DEPLOY_DIR: '/opt/$CI_PROJECT_NAME-$CI_COMMIT_REF_NAME'
+    CONTAINER_NAME: '$CI_PROJECT_NAME-$CI_COMMIT_REF_NAME'
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -p 22 -H $DEPLOY_SERVER_IP >> ~/.ssh/known_hosts
+  script:
+    - echo "Deploying to $DEPLOY_SERVER_IP for branch $CI_COMMIT_REF_NAME"
+    - |
+      # Определяем порт и конфигурацию в зависимости от ветки
+      if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
+        HOST_PORT=3336
+        ENV_CONTENT="$ENV_CONFIG_PROD"
+        echo "Deploying PRODUCTION environment on port $HOST_PORT"
+      else
+        HOST_PORT=3337
+        ENV_CONTENT="$ENV_CONFIG_DEV"
+        echo "Deploying DEVELOPMENT environment on port $HOST_PORT"
+      fi
+      
+      ssh -p 22 $DEPLOY_USER@$DEPLOY_SERVER_IP << EOF
+        export IMAGE_NAME="$IMAGE_NAME"
+        export DEPLOY_DIR="$DEPLOY_DIR"
+        export CONTAINER_NAME="$CONTAINER_NAME"
+        export HOST_PORT="$HOST_PORT"
+        
+        echo "Setting up deployment directory: \$DEPLOY_DIR"
+        mkdir -p \$DEPLOY_DIR
+        
+        # Записываем нужную конфигурацию
+        echo "$ENV_CONTENT" > \$DEPLOY_DIR/.env
+        
+        echo "Pulling new image \$IMAGE_NAME"
+        docker login -u $DOCKER_USER -p $DOCKER_PASSWORD $DOCKER_REGISTRY
+        docker pull \$IMAGE_NAME
+        
+        echo "Redeploying with docker"
+        cd \$DEPLOY_DIR
+        docker stop \$CONTAINER_NAME || true
+        docker rm \$CONTAINER_NAME || true
+        docker run -d \\
+          --name \$CONTAINER_NAME \\
+          --env-file .env \\
+          -p \$HOST_PORT:3336 \\
+          --restart always \\
+          --network docker-services_backend \\
+          \$IMAGE_NAME
+        echo "Deployment successful! Container \$CONTAINER_NAME running on port \$HOST_PORT"
+      EOF
+  only:
+    - main
+    - develop

@@ -1,0 +1,84 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=${NODE_ENV:-development}
+        - JAPAN_AUCTION_BASE_URL=${JAPAN_AUCTION_BASE_URL}
+        - JAPAN_AUCTION_USER_LOGIN=${JAPAN_AUCTION_USER_LOGIN}
+        - JAPAN_AUCTION_IMAGE_BASE_URL=${JAPAN_AUCTION_IMAGE_BASE_URL}
+        - JAPAN_AUCTION_PROXY_HOST=${JAPAN_AUCTION_PROXY_HOST}
+        - JAPAN_AUCTION_PROXY_PORT=${JAPAN_AUCTION_PROXY_PORT}
+        - JAPAN_AUCTION_PROXY_USERNAME=${JAPAN_AUCTION_PROXY_USERNAME}
+        - JAPAN_AUCTION_PROXY_PASSWORD=${JAPAN_AUCTION_PROXY_PASSWORD}
+        - NRG_CATALOG_BASE_URL=${NRG_CATALOG_BASE_URL}
+        - NRG_CATALOG_LOGIN=${NRG_CATALOG_LOGIN}
+        - NRG_CATALOG_PASSWORD=${NRG_CATALOG_PASSWORD}
+        - EXCHANGE_RATE_BASE_URL=${EXCHANGE_RATE_BASE_URL}
+        - EXCHANGE_RATE_API_KEY=${EXCHANGE_RATE_API_KEY}
+        - QUEUE_REDIS_HOST=${QUEUE_REDIS_HOST}
+        - QUEUE_REDIS_PORT=${QUEUE_REDIS_PORT}
+        - QUEUE_REDIS_USE_TLS=${QUEUE_REDIS_USE_TLS}
+        - DATABASE_URI=${DATABASE_URI}
+    ports:
+      - "${PORT:-3336}:${PORT:-3336}"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${PORT:-3336}
+      - DATABASE_URI=${DATABASE_URI}
+      - QUEUE_REDIS_HOST=${QUEUE_REDIS_HOST}
+      - QUEUE_REDIS_PORT=${QUEUE_REDIS_PORT}
+      - QUEUE_REDIS_USE_TLS=${QUEUE_REDIS_USE_TLS}
+      - GLOBAL_PREFIX=${GLOBAL_PREFIX}
+      - LOGGER_ENABLED_PINO=${LOGGER_ENABLED_PINO}
+      - SWAGGER_API_URL=${SWAGGER_API_URL}
+      - SWAGGER_ENABLED=${SWAGGER_ENABLED}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED}
+      - RATE_LIMIT_APP_TTL=${RATE_LIMIT_APP_TTL}
+      - RATE_LIMIT_APP_LIMIT=${RATE_LIMIT_APP_LIMIT}
+      - JAPAN_AUCTION_BASE_URL=${JAPAN_AUCTION_BASE_URL}
+      - JAPAN_AUCTION_USER_LOGIN=${JAPAN_AUCTION_USER_LOGIN}
+      - JAPAN_AUCTION_IMAGE_BASE_URL=${JAPAN_AUCTION_IMAGE_BASE_URL}
+      - JAPAN_AUCTION_PROXY_HOST=${JAPAN_AUCTION_PROXY_HOST}
+      - JAPAN_AUCTION_PROXY_PORT=${JAPAN_AUCTION_PROXY_PORT}
+      - JAPAN_AUCTION_PROXY_USERNAME=${JAPAN_AUCTION_PROXY_USERNAME}
+      - JAPAN_AUCTION_PROXY_PASSWORD=${JAPAN_AUCTION_PROXY_PASSWORD}
+      - NRG_CATALOG_BASE_URL=${NRG_CATALOG_BASE_URL}
+      - NRG_CATALOG_LOGIN=${NRG_CATALOG_LOGIN}
+      - NRG_CATALOG_PASSWORD=${NRG_CATALOG_PASSWORD}
+      - EXCHANGE_RATE_BASE_URL=${EXCHANGE_RATE_BASE_URL}
+      - EXCHANGE_RATE_API_KEY=${EXCHANGE_RATE_API_KEY}
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - buzinavto-network
+    
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=buzinavto
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - buzinavto-network
+
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - buzinavto-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  buzinavto-network:
+    driver: bridge

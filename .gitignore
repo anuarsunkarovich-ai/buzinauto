@@ -1,0 +1,33 @@
+.DS_Store
+Thumbs.db
+
+# Root env files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend
+b-nextjs-frontent-main/.next/
+b-nextjs-frontent-main/node_modules/
+b-nextjs-frontent-main/.pnpm-store/
+b-nextjs-frontent-main/.vercel/
+
+# Backend
+buzinavt-nestjs-backend/node_modules/
+buzinavt-nestjs-backend/dist/
+
+# Python calculator
+buzinavt-nestjs-backend/CalculationModule/buzin_calculator/venv/
+buzinavt-nestjs-backend/CalculationModule/buzin_calculator/__pycache__/
+buzinavt-nestjs-backend/CalculationModule/buzin_calculator/.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
