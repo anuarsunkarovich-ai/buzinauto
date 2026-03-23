@@ -614,18 +614,61 @@ def _reorder_image_urls(image_urls: list[str], detail_soup: BeautifulSoup, aucti
     auction: list[str] = []
     others: list[str] = []
 
+    # Build a mapping from normalized image URL -> descriptive text (alt/title/anchor)
+    url_texts: dict[str, str] = {}
+    if detail_soup:
+        try:
+            for img in detail_soup.find_all("img"):
+                raw = (img.get("load_src") or img.get("src") or "").strip()
+                if not raw:
+                    continue
+                norm = _absolute_aleado_url(raw.split("&h=")[0].split("?w=")[0])
+                if not norm or norm not in image_urls:
+                    continue
+                parts: list[str] = []
+                alt = (img.get("alt") or "").strip()
+                if alt:
+                    parts.append(alt)
+                title = (img.get("title") or "").strip()
+                if title:
+                    parts.append(title)
+                parent = img.parent
+                if parent and getattr(parent, "name", None) == "a":
+                    ptxt = (parent.get_text(" ", strip=True) or parent.get("href") or "").strip()
+                    if ptxt:
+                        parts.append(ptxt)
+                if parts:
+                    url_texts[norm] = " ".join(parts)
+
+            for a in detail_soup.find_all("a", href=True):
+                href = (a.get("href") or "").strip()
+                norm = _absolute_aleado_url(href.split("&h=")[0].split("?w=")[0])
+                if not norm or norm not in image_urls:
+                    continue
+                if norm in url_texts:
+                    continue
+                atxt = (a.get_text(" ", strip=True) or "").strip()
+                if atxt:
+                    url_texts[norm] = atxt
+        except Exception:
+            # Non-critical: if parsing fails, fallback to URL-only heuristics
+            url_texts = {}
+
     def classify(url: str) -> None:
-        low = (url or "").lower()
+        low_url = (url or "").lower()
+        low_text = (url_texts.get(url) or "").lower()
+
+        # Prioritize textual hints from alt/title/anchor when available
         for kw in front_kw:
-            if kw in low:
+            if kw in low_text or kw in low_url:
                 front.append(url)
                 return
         for kw in rear_kw:
-            if kw in low:
+            if kw in low_text or kw in low_url:
                 rear.append(url)
                 return
         for kw in auction_kw:
-            if kw in low:
+            if kw in low_text or kw in low_url:
                 auction.append(url)
                 return
         others.append(url)
