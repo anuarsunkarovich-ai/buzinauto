@@ -506,7 +506,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
                         : 'Упс... Ничего не найдено'
                   }
                   disabled={!selectedModel || bodyTypesLoading}
-                  onChange={(value: string) => {
+                  onChange={(value: string | undefined) => {
                     field.onChange(value)
                   }}
                   value={field.value}
