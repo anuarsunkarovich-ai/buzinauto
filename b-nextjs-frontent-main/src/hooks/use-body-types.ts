@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
 import { Country } from '@/constants/country'
+import { searchCars } from '@/lib/services/auction.service'
 
 export type BodyType = {
   body: string
@@ -29,29 +30,29 @@ export const useBodyTypes = (
       setError(null)
 
       try {
-        const baseUrl = getRuntimeBackendApiUrl()
-        if (!baseUrl) {
-          throw new Error('Backend API URL is not configured')
-        }
-
-        const url = new URL(`${baseUrl.replace(/\/$/, '')}/body-types`)
-        url.searchParams.set('brand', brand)
-        url.searchParams.set('model', model)
-        url.searchParams.set('country', country)
-
-        const response = await fetch(url.toString(), {
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
-          next: { revalidate: 300 },
+        // Use the existing search API to get cars and extract body types
+        const response = await searchCars({
+          brand,
+          model,
+          // Don't add too many filters to get a good sample of body types
+          minYear: 2020, // Recent cars to get relevant data
         })
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch body types: ${response.status}`)
-        }
+        // Extract unique body types from the results
+        const bodyCounts = new Map<string, number>()
+        response.results.forEach((car) => {
+          if (car.body && car.body.trim()) {
+            const body = car.body.trim()
+            bodyCounts.set(body, (bodyCounts.get(body) || 0) + 1)
+          }
+        })
 
-        const data = await response.json()
-        setBodyTypes(data.body_types || [])
+        // Convert to array and sort by count (most common first)
+        const bodyTypesArray = Array.from(bodyCounts.entries())
+          .map(([body, count]) => ({ body, count }))
+          .sort((a, b) => b.count - a.count)
+
+        setBodyTypes(bodyTypesArray)
       } catch (err) {
         console.error('useBodyTypes error:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch body types')

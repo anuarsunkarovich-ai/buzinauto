@@ -1,6 +1,6 @@
 import { BoxContainer } from '@/components/common/containers/box-container'
 import { AppBreadcrumb } from '@/components/features/breadcrumb'
-import { AuctionAnalyticsBlock } from '@/components/features/auction-analytics/auction-analytics-block'
+import { CatalogBasedStats } from '@/components/features/auction-analytics/catalog-based-stats'
 import { Footer } from '@/components/layout/footer'
 import { Header } from '@/components/layout/headers/header'
 import { Title } from '@/components/ui/title'
@@ -91,20 +91,11 @@ export default async function JapanModelStatsPage({
           </Href>
         </div>
 
-        <React.Suspense fallback={
-          <div className="flex flex-col gap-8 animate-pulse">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[1, 2, 3].map(i => <div key={i} className="h-32 bg-card/40 rounded-xl" />)}
-            </div>
-            <div className="h-64 bg-card/40 rounded-xl" />
-          </div>
-        }>
-          <AuctionAnalyticsBlock 
-            brand={toValidSlug(brand)} 
-            model={model} 
-            filters={filters}
-          />
-        </React.Suspense>
+        <CatalogBasedStats 
+          brand={toValidSlug(brand)} 
+          model={model} 
+          filters={filters}
+        />
       </BoxContainer>
       <Footer />
     </div>
