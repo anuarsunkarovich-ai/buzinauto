@@ -12,6 +12,8 @@ export type CatalogCarPromiseFilter = {
   brands?: string[]
   minMilage?: number
   maxMilage?: number
+  minYear?: number
+  maxYear?: number
   minEnginePower?: number
   maxEnginePower?: number
   minPrice?: number
@@ -135,6 +137,22 @@ export const getManyCatalogCarPromise = async (
       and.push({
         mileageKm: {
           greater_than_equal: filter.minMilage,
+        },
+      })
+    }
+
+    if (typeof filter === 'object' && 'minYear' in filter && filter.minYear) {
+      and.push({
+        year: {
+          greater_than_equal: filter.minYear,
+        },
+      })
+    }
+
+    if (typeof filter === 'object' && 'maxYear' in filter && filter.maxYear) {
+      and.push({
+        year: {
+          less_than_equal: filter.maxYear,
         },
       })
     }

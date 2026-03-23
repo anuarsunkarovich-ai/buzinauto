@@ -58,6 +58,8 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
     defaultValues: {
       make: defaultValues?.make,
       model: defaultValues?.model,
+      maxYear: defaultValues?.maxYear ? parseInt(defaultValues.maxYear) : undefined,
+      minYear: defaultValues?.minYear ? parseInt(defaultValues.minYear) : undefined,
       maxEnginePower: defaultValues?.maxEnginePower
         ? parseInt(defaultValues.maxEnginePower)
         : undefined,
@@ -235,6 +237,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
       }
       if (values.minMileageKm) {
         query.set('minMileageKm', values.minMileageKm.toString())
+      }
+      if (values.minYear) {
+        query.set('minYear', values.minYear.toString())
+      }
+      if (values.maxYear) {
+        query.set('maxYear', values.maxYear.toString())
       }
       if (values.minEnginePower) {
         query.set('minEnginePower', values.minEnginePower.toString())
@@ -434,6 +442,56 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
                   placeholder={'Рейтинг...'}
                   searchPlaceholder="Найти рейтинг..."
                   emptyMessage={'Упс... Ничего не найдено'}
+                  onChange={(value) => {
+                    field.onChange(value)
+                  }}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="minYear"
+          render={({ field }) => (
+            <FormItem
+              className={`
+                col-span-2
+                md:col-span-1
+              `}
+            >
+              <FormLabel>Минимальный год</FormLabel>
+              <FormControl className="mb-0">
+                <InputNumber
+                  className="select-none"
+                  placeholder={'Минимальный год...'}
+                  onChange={(value) => {
+                    field.onChange(value)
+                  }}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="maxYear"
+          render={({ field }) => (
+            <FormItem
+              className={`
+                col-span-2
+                md:col-span-1
+              `}
+            >
+              <FormLabel>Максимальный год</FormLabel>
+              <FormControl className="mb-0">
+                <InputNumber
+                  className="select-none"
+                  placeholder={'Максимальный год...'}
                   onChange={(value) => {
                     field.onChange(value)
                   }}

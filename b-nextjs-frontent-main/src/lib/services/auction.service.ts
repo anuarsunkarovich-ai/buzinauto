@@ -5,6 +5,8 @@ export type SearchCarsParams = {
   model?: string
   auctionDate?: string
   rating?: string
+  minYear?: number
+  maxYear?: number
   minMileageKm?: number
   maxMileageKm?: number
   minEnginePower?: number
@@ -18,6 +20,7 @@ export type FastApiSearchCar = {
   auction_name?: string
   year?: string | number
   engine_cc?: string | number
+  horsepower?: string | number
   mileage?: string | number
   auction_date?: string
   price_jpy?: string | number
@@ -98,6 +101,8 @@ const buildSearchUrl = (
     model,
     auctionDate,
     rating,
+    minYear,
+    maxYear,
     minMileageKm,
     maxMileageKm,
     minEnginePower,
@@ -116,6 +121,12 @@ const buildSearchUrl = (
   }
   if (rating) {
     url.searchParams.set('rating', rating)
+  }
+  if (typeof minYear === 'number') {
+    url.searchParams.set('min_year', String(minYear))
+  }
+  if (typeof maxYear === 'number') {
+    url.searchParams.set('max_year', String(maxYear))
   }
   if (typeof minMileageKm === 'number') {
     url.searchParams.set('min_mileage_km', String(minMileageKm))
@@ -159,6 +170,8 @@ export const searchCars = async ({
   model,
   auctionDate,
   rating,
+  minYear,
+  maxYear,
   minMileageKm,
   maxMileageKm,
   minEnginePower,
@@ -178,6 +191,8 @@ export const searchCars = async ({
       model,
       auctionDate,
       rating,
+      minYear,
+      maxYear,
       minMileageKm,
       maxMileageKm,
       minEnginePower,
@@ -196,6 +211,8 @@ export const searchCars = async ({
       brand,
       auctionDate,
       rating,
+      minYear,
+      maxYear,
       minMileageKm,
       maxMileageKm,
       minEnginePower,

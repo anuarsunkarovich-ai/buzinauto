@@ -114,7 +114,7 @@ const requestCalculation = async ({
   return request
 }
 
-export const useCarFeeCalc = (car: any, usageType: UsageType = 'commercial') => {
+export const useCarFeeCalc = (car: any, usageType: UsageType = 'private') => {
   const [fees, setFees] = React.useState<any>(null)
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -191,7 +191,7 @@ export function useCarFeeFuncEnum(
   enginePower: number = 0,
   horsepower: number = 0,
   carAge: number = 0,
-  usageType: UsageType = 'commercial',
+  usageType: UsageType = 'private',
 ): UseCarFeeFuncEnumResult {
   const [result, setResult] = React.useState<FastApiCalculationResponse | null>(null)
 

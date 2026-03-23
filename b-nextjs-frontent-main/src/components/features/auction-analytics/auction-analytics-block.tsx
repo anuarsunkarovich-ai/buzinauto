@@ -18,6 +18,7 @@ export const AuctionAnalyticsBlock = async ({
     min_mileage_km?: number
     max_mileage_km?: number
     min_year?: number
+    max_year?: number
     rating?: string
   }
 }) => {
@@ -133,16 +134,15 @@ export const AuctionAnalyticsBlock = async ({
                     description={[lot.transmission, mileageKm ? `${mileageKm} км.` : undefined].filter(Boolean).join(', ')}
                     tags={[lot.color, enginePower ? `${enginePower} cc` : undefined, `Sold ${lot.auction_date}`].filter(Boolean) as string[]}
                     price={lot.price_jpy}
-                    currency="JPY"
-                    year={year}
-                    // Prevent these from rendering zero values when missing
-                    horsepower={0}
+                  currency="JPY"
+                  year={year}
+                    horsepower={Number(lot.horsepower || 0)}
                     enginePower={enginePower}
                     engineType="gasoline"
                     location={lot.auction_date}
                     rating={lot.grade}
                     images={[{ src: lot.image_url || '/static/img/loading72.gif', alt: lot.model }]}
-                    isDetailed={false}
+                    auctionDate={lot.auction_date}
                   />
                 </CarCarouselOnHoverCard>
                 {/* Sold Badge */}

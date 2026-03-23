@@ -43,6 +43,16 @@ export const HEADER_MENU: HeaderItemPropsTypes[] = [
         group: 'Популярное',
       },
       {
+        title: 'Калькулятор',
+        url: '/japan/calculator',
+        group: 'Популярное',
+      },
+      {
+        title: 'Статистика авто',
+        url: '/japan/stats',
+        group: 'Популярное',
+      },
+      {
         title: 'Праворульные',
         url: '/japan/pravoruljnye',
         group: 'Популярное',

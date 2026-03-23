@@ -6,6 +6,14 @@ export const filterAutoSchema = z.object({
   make: z.string('Выберите марку автомобиля').optional(),
   rating: z.string('Выберите рейтинг автомобиля').optional(),
   auctionDate: z.string().optional(),
+  minYear: z.coerce
+    .number()
+    .optional()
+    .refine((e) => e === undefined || e >= 1900, 'Введите корректный год'),
+  maxYear: z.coerce
+    .number()
+    .optional()
+    .refine((e) => e === undefined || e >= 1900, 'Введите корректный год'),
   minMileageKm: z.coerce
     .number()
     .optional()

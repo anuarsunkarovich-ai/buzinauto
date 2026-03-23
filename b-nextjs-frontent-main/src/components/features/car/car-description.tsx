@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { Href } from '@/components/ui/href'
 import { Money } from '@/components/ui/money'
 import { Separator } from '@/components/ui/separator'
 import { Text } from '@/components/ui/text'
@@ -20,6 +21,9 @@ export type CarDescriptionPropsTypes = {
   horsepower: number
   driveType?: string
   color?: string
+  lot?: string
+  auctionDate?: string
+  auctionSheetUrl?: string
   mileageKm?: string
   rating?: string
   wheelPosition?: string
@@ -36,6 +40,9 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
   price,
   driveType,
   color,
+  lot,
+  auctionDate,
+  auctionSheetUrl,
   year,
   enginePower,
   engineType,
@@ -51,8 +58,23 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
     new Date().getFullYear() - year,
   )
 
+  const formattedAuctionDate = React.useMemo(() => {
+    if (!auctionDate) {
+      return undefined
+    }
+
+    const parsedDate = new Date(auctionDate)
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return new Intl.DateTimeFormat('ru-RU').format(parsedDate)
+    }
+
+    return auctionDate
+  }, [auctionDate])
+
   const carDetails = [
+    { label: 'Лот', value: lot ? `№ ${lot}` : undefined },
     { label: 'Год', value: year },
+    { label: 'Дата торгов', value: formattedAuctionDate },
     { label: 'Оценка', value: rating },
     { label: 'Пробег', value: mileageKm },
     { label: 'Мощность', value: horsepowerString },
@@ -64,7 +86,7 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
   const carPriceDetails = [
     { label: 'Аукционная стоимость', value: auctionPrice() },
     { label: 'Пошлина', value: dutyPrice() },
-    { label: 'Доставка до города Клиента', value: deliveryPrice() },
+    { label: 'Доставка до города клиента', value: deliveryPrice() },
   ]
 
   const renderTriggerPrice = React.useCallback((): React.ReactNode => {
@@ -150,6 +172,13 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
           horsepower={horsepower}
           renderTrigger={renderTriggerPrice}
         />
+        {auctionSheetUrl && (
+          <Button asChild variant="secondary" className="w-full max-w-full cursor-pointer">
+            <Href href={auctionSheetUrl} target="_blank" rel="noreferrer">
+              Аукционный лист
+            </Href>
+          </Button>
+        )}
       </div>
     </div>
   )

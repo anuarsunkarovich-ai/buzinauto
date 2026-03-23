@@ -41,6 +41,7 @@ export const mapperToCar = (car: CatalogCar): CarVisibleCardPropsTypes | null =>
     currency: car.price.currency || 'JPY',
     rating: car.rating && /[[a-zA-Z\d]+/.test(car.rating) ? car.rating : undefined,
     year: car.year || 2025,
+    auctionDate: car.date,
     countryPath: CountryPathname.find((e) => e.country === car.saleCountry)?.pathname || '/japan',
     enginePower: car?.enginePower || 1000,
     engineType: car?.engineType || undefined,
@@ -65,6 +66,10 @@ export const mapperToCarDescription = (car: CatalogCar): CarDescriptionPropsType
     horsepowerString: horsepowerString,
     horsepower: car.horsepower || 0,
     color: car.color ? stringToFirstCapitalize(car.color) : undefined,
+    lot: car.lot ? String(car.lot) : undefined,
+    auctionDate: car.date,
+    auctionSheetUrl:
+      typeof car.auctionList === 'object' && car.auctionList?.url ? car.auctionList.url : undefined,
     driveType: car.driveType
       ? stringToFirstCapitalize(car.driveType?.replace?.('привод', ''))
       : undefined,

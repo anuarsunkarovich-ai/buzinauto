@@ -164,6 +164,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
             {currencyPriceList.map((row, i) => {
               const moneyRub = calculator(row)
               if (!moneyRub) return
+              const isAuctionPriceRow = row.callToMoney === 'AUCTION_PRICE'
 
               return (
                 <TableRow key={i}>
@@ -181,7 +182,14 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
                       md:max-w-full
                     `}
                   >
-                    <Money amount={moneyRub} />
+                    <div className="flex flex-col items-center gap-1">
+                      <Money amount={moneyRub} />
+                      {isAuctionPriceRow && carPrice > 0 && (
+                        <Text as="small" className="text-muted-foreground">
+                          {carPrice.toLocaleString('ru-RU')} ¥
+                        </Text>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     {row.tip ? <DialogDetailedCarTooltip tip={row.tip} /> : null}

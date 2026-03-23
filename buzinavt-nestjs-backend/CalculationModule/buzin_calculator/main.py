@@ -143,6 +143,7 @@ class RecentLot(BaseModel):
     model: str
     year: str
     engine_cc: str
+    horsepower: int = 0
     mileage: str
     grade: str
     price_jpy: int
@@ -222,6 +223,8 @@ async def search_and_calculate(
     model: str = "718",
     auction_date: str | None = None,
     rating: str | None = None,
+    min_year: int | None = None,
+    max_year: int | None = None,
     min_mileage_km: float | None = None,
     max_mileage_km: float | None = None,
     min_engine_volume_l: float | None = None,
@@ -257,6 +260,10 @@ async def search_and_calculate(
             if str(car.get("grade") or car.get("rating") or "").strip().lower()
             == rating.strip().lower()
         ]
+    if min_year is not None:
+        cars = [car for car in cars if _safe_number(car.get("year")) >= min_year]
+    if max_year is not None:
+        cars = [car for car in cars if _safe_number(car.get("year")) <= max_year]
     if min_mileage_km is not None:
         cars = [
             car for car in cars if _safe_number(car.get("mileage")) >= min_mileage_km
@@ -310,6 +317,7 @@ async def search_and_calculate(
         car["average_price_jpy"] = str(average_price_jpy) if average_price_jpy > 0 else ""
         car["calculation_price_jpy"] = str(calculation_price_jpy)
         car["price_source"] = "average" if average_price_jpy > 0 else "lot"
+        car["horsepower"] = horsepower
 
         car["price_details"] = {
             "car_price_rub": float(calculation.auction_rub),
@@ -531,6 +539,7 @@ async def auction_stats(
             model=str(c.get("model") or model_name),
             year=str(c.get("year") or ""),
             engine_cc=str(c.get("engine_cc") or ""),
+            horsepower=int(_safe_number(c.get("horsepower"))),
             mileage=str(c.get("mileage") or ""),
             grade=str(c.get("grade") or c.get("rating") or ""),
             price_jpy=_to_int_price(c.get("price_jpy", 0)),

@@ -21,6 +21,7 @@ export type AuctionStatsResponse = {
     model: string
     year: string
     engine_cc: string
+    horsepower: number
     mileage: string
     grade: string
     price_jpy: number
@@ -42,6 +43,7 @@ export const getAuctionStats = async (
     min_mileage_km?: number
     max_mileage_km?: number
     min_year?: number
+    max_year?: number
     rating?: string
   }
 ): Promise<AuctionStatsResponse | null> => {
@@ -61,6 +63,9 @@ export const getAuctionStats = async (
   }
   if (filters?.min_year) {
     url.searchParams.set('min_year', String(filters.min_year))
+  }
+  if (filters?.max_year) {
+    url.searchParams.set('max_year', String(filters.max_year))
   }
   if (filters?.rating) {
     url.searchParams.set('rating', filters.rating)

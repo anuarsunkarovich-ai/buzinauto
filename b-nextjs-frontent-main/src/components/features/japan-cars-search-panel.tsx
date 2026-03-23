@@ -22,6 +22,17 @@ const pickImage = (car: FastApiSearchCar) => {
   return car.image_url || car.image_urls?.[0] || '/static/img/loading72.gif'
 }
 
+const buildImages = (car: FastApiSearchCar, fallbackAlt: string) => {
+  const sources = car.image_urls?.length ? car.image_urls : [pickImage(car)]
+
+  return sources
+    .filter(Boolean)
+    .map((src, index) => ({
+      src,
+      alt: index === 0 ? fallbackAlt : `${fallbackAlt} ${index + 1}`,
+    }))
+}
+
 const normalizeCarText = (value: string | number | undefined | null) =>
   String(value || '')
     .toLowerCase()
@@ -70,6 +81,7 @@ const mapFastApiCarToVisibleCard = (
   const mileageKm = Number(String(car.mileage ?? 0).replace(/[^\d]/g, '')) || 0
   const initialTotalRub = Number(car.total_rub || 0)
   const titleParts = buildUniqueCarTextParts([model, car.modification, String(year)])
+  const imageAlt = [toModelDisplay(brand), model, String(year)].filter(Boolean).join(' ')
   const descriptionParts = buildUniqueCarTextParts([
     car.body,
     car.modification,
@@ -94,19 +106,15 @@ const mapFastApiCarToVisibleCard = (
     price: priceJpy,
     currency: 'JPY',
     year,
-    horsepower: 0,
+    horsepower: Number(car.horsepower || 0),
     enginePower,
     engineType: 'gasoline',
     location: [car.auction_name, car.auction].filter(Boolean).join(' ') || 'Japan',
+    auctionDate: car.auction_date,
     rating: car.rating || undefined,
     initialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
     initialCommercialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
-    images: [
-      {
-        src: pickImage(car),
-        alt: [toModelDisplay(brand), model, String(year)].filter(Boolean).join(' '),
-      },
-    ],
+    images: buildImages(car, imageAlt),
   }
 }
 
@@ -133,6 +141,8 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
           model: values.model ? String(values.model) : undefined,
           auctionDate: values.auctionDate ? String(values.auctionDate) : undefined,
           rating: values.rating ? String(values.rating) : undefined,
+          minYear: typeof values.minYear === 'number' ? values.minYear : undefined,
+          maxYear: typeof values.maxYear === 'number' ? values.maxYear : undefined,
           minMileageKm: typeof values.minMileageKm === 'number' ? values.minMileageKm : undefined,
           maxMileageKm: typeof values.maxMileageKm === 'number' ? values.maxMileageKm : undefined,
           minEnginePower:

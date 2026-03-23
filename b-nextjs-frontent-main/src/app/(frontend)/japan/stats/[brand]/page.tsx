@@ -46,6 +46,7 @@ export default async function JapanBrandStatsPage({
         ? parseInt(searchParams.maxMileageKm)
         : undefined,
     min_year: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
+    max_year: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
     rating: typeof searchParams.rating === 'string' ? searchParams.rating : undefined,
   }
 
@@ -66,6 +67,10 @@ export default async function JapanBrandStatsPage({
           <FilterAuto
             defaultValues={{
               make: toValidSlug(brand),
+              minYear:
+                typeof searchParams.minYear === 'string' ? searchParams.minYear : undefined,
+              maxYear:
+                typeof searchParams.maxYear === 'string' ? searchParams.maxYear : undefined,
               minMileageKm:
                 typeof searchParams.minMileageKm === 'string'
                   ? searchParams.minMileageKm

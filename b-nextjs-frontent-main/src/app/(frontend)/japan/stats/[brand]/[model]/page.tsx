@@ -40,7 +40,8 @@ export default async function JapanModelStatsPage({
   const filters = {
     min_mileage_km: typeof searchParams.minMileageKm === 'string' ? parseInt(searchParams.minMileageKm) : undefined,
     max_mileage_km: typeof searchParams.maxMileageKm === 'string' ? parseInt(searchParams.maxMileageKm) : undefined,
-    min_year: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined, // Check if FilterAuto uses minYear or minEngine
+    min_year: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
+    max_year: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
     rating: typeof searchParams.rating === 'string' ? searchParams.rating : undefined,
   }
 
@@ -63,6 +64,8 @@ export default async function JapanModelStatsPage({
               defaultValues={{
                 make: toValidSlug(brand),
                 model: model,
+                minYear: typeof searchParams.minYear === 'string' ? searchParams.minYear : undefined,
+                maxYear: typeof searchParams.maxYear === 'string' ? searchParams.maxYear : undefined,
                 minMileageKm: typeof searchParams.minMileageKm === 'string' ? searchParams.minMileageKm : undefined,
                 maxMileageKm: typeof searchParams.maxMileageKm === 'string' ? searchParams.maxMileageKm : undefined,
                 rating: typeof searchParams.rating === 'string' ? searchParams.rating : undefined,

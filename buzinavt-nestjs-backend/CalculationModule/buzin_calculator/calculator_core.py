@@ -149,10 +149,15 @@ def resolve_effective_modes(
     normalized_usage = normalize_usage_type(usage_type)
     forced_commercial = should_force_commercial(engine_type, horsepower)
 
-    if normalized_user == LEGAL_IMPORTER or normalized_usage == COMMERCIAL_USAGE or forced_commercial:
-        return LEGAL_IMPORTER, COMMERCIAL_USAGE, forced_commercial
+    effective_usage_type = (
+        COMMERCIAL_USAGE
+        if normalized_user == LEGAL_IMPORTER
+        or normalized_usage == COMMERCIAL_USAGE
+        or forced_commercial
+        else PRIVATE_USAGE
+    )
 
-    return INDIVIDUAL_IMPORTER, PRIVATE_USAGE, forced_commercial
+    return normalized_user, effective_usage_type, forced_commercial
 
 
 def get_customs_clearance_fee_rub(car_price_rub: Decimal) -> Decimal:
@@ -307,9 +312,14 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
     customs_duty_rub = quantize_money(
         customs_duty_core_rub + customs_processing_fee_rub + excise_rub + duty_buffer_rub
     )
+    util_user_type = (
+        LEGAL_IMPORTER
+        if effective_user_type == LEGAL_IMPORTER or effective_usage_type == COMMERCIAL_USAGE
+        else INDIVIDUAL_IMPORTER
+    )
     util_fee_rub = calculate_recycling_fee_rub(
         year=context.year,
-        effective_user_type=effective_user_type,
+        effective_user_type=util_user_type,
         engine_type=context.engine_type,
         engine_volume=context.engine_volume,
         age_category=context.age_category,

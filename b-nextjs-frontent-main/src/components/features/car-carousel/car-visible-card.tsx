@@ -15,6 +15,7 @@ import { CarCarouselOnHoverCardPropsTypes } from './car-carousel-on-hover-card'
 export type CarVisibleCardPropsTypes = {
   title: string
   lot?: string
+  auctionDate?: string
   modelSlug: string
   id: string
   brandSlug: string
@@ -37,6 +38,7 @@ export type CarVisibleCardPropsTypes = {
 export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
   title,
   lot,
+  auctionDate,
   tags,
   modelSlug,
   brandSlug,
@@ -82,6 +84,19 @@ export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
     return `${countryPath}/car/${brandSlug}/${modelSlug}/${id}`
   }, [countryPath, brandSlug, modelSlug, id])
 
+  const formattedAuctionDate = React.useMemo(() => {
+    if (!auctionDate) {
+      return undefined
+    }
+
+    const parsedDate = new Date(auctionDate)
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return new Intl.DateTimeFormat('ru-RU').format(parsedDate)
+    }
+
+    return auctionDate
+  }, [auctionDate])
+
   const navigateToCard = React.useCallback(() => {
     return router.push(url)
   }, [router, url])
@@ -111,6 +126,11 @@ export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
           {lot && (
             <Text as="small" className="text-muted-foreground">
               Лот № {lot}
+            </Text>
+          )}
+          {formattedAuctionDate && (
+            <Text as="small" className="text-muted-foreground">
+              Дата торгов: {formattedAuctionDate}
             </Text>
           )}
           <Text

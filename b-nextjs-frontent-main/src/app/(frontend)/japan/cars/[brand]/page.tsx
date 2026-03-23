@@ -43,6 +43,8 @@ export default async function JapanCarsPage({ params: paramsPromise, searchParam
   const { docs } = await getManyCatalogCarPromise(1, {
     brand: toValidSlug(brand),
     country: Country.JAPAN,
+    minYear: typeof params['minYear'] === 'string' ? parseInt(params['minYear']) : undefined,
+    maxYear: typeof params['maxYear'] === 'string' ? parseInt(params['maxYear']) : undefined,
     minEnginePower:
       typeof params['minEnginePower'] === 'string' ? parseInt(params['minEnginePower']) : undefined,
     maxEnginePower:
@@ -75,6 +77,8 @@ export default async function JapanCarsPage({ params: paramsPromise, searchParam
           initialItems={items}
           defaultValues={{
             make: toValidSlug(brand),
+            minYear: typeof params['minYear'] === 'string' ? params['minYear'] : undefined,
+            maxYear: typeof params['maxYear'] === 'string' ? params['maxYear'] : undefined,
             minEnginePower:
               typeof params['minEnginePower'] === 'string' ? params['minEnginePower'] : undefined,
             maxEnginePower:
