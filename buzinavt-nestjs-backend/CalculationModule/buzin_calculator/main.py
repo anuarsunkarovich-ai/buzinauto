@@ -539,7 +539,11 @@ async def auction_stats(
             model=str(c.get("model") or model_name),
             year=str(c.get("year") or ""),
             engine_cc=str(c.get("engine_cc") or ""),
-            horsepower=int(_safe_number(c.get("horsepower"))),
+            horsepower=(
+                int(_safe_number(c.get("horsepower")))
+                if int(_safe_number(c.get("horsepower"))) > 0
+                else estimate_horsepower(int(_safe_number(c.get("engine_cc"))))
+            ),
             mileage=str(c.get("mileage") or ""),
             grade=str(c.get("grade") or c.get("rating") or ""),
             price_jpy=_to_int_price(c.get("price_jpy", 0)),
