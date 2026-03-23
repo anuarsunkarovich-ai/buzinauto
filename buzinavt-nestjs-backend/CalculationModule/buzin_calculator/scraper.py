@@ -875,6 +875,31 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
 
         ordered_images = _reorder_image_urls(image_urls, detail_soup, auction_sheet_url)
 
+        # Force the original first image (thumbnail/preview) to be moved
+        # to the end of the list we return, but keep the auction sheet image
+        # always last. This makes the current first pic become last-but-one
+        # while auction_sheet_url remains final.
+        original_primary = image_urls[0] if image_urls else ""
+        if original_primary:
+            prim_norm = _absolute_aleado_url(original_primary.split("&h=")[0].split("?w=")[0])
+            if prim_norm in ordered_images:
+                try:
+                    ordered_images.remove(prim_norm)
+                except Exception:
+                    pass
+            if prim_norm:
+                ordered_images.append(prim_norm)
+
+        # Ensure auction sheet URL is always the final image
+        if auction_sheet_url:
+            if auction_sheet_url in ordered_images:
+                try:
+                    ordered_images.remove(auction_sheet_url)
+                except Exception:
+                    pass
+            if auction_sheet_url:
+                ordered_images.append(auction_sheet_url)
+
         payload = {
             "average_price_jpy": average_price,
             "horsepower": horsepower,
