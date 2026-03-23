@@ -73,7 +73,7 @@ const mapToCarVisibleCard = (car: FastApiSearchCar): CarVisibleCardPropsTypes =>
 
   return {
     id: String(car.lot || Math.random()),
-    title: toModelDisplay(car.brand || '', car.modelDisplay || car.model || ''),
+    title: `${toModelDisplay(car.brand || '')} ${toModelDisplay(car.modelDisplay || car.model || '')}`,
     lot: car.lot,
     brandSlug: toUrlSlug(car.brand || ''),
     modelSlug: toUrlSlug(car.modelDisplay || car.model || ''),
@@ -85,7 +85,12 @@ const mapToCarVisibleCard = (car: FastApiSearchCar): CarVisibleCardPropsTypes =>
       car.transmission,
       car.grade,
       enginePower ? `${enginePower} cc` : undefined,
-    ]).filter(Boolean) as string[],
+    ]).join(' '),
+    tags: buildUniqueCarTextParts([
+      car.transmission,
+      car.grade,
+      car.body,
+    ]),
     price: priceJpy,
     currency: 'JPY',
     year,
@@ -118,7 +123,7 @@ export const CatalogBasedStats: React.FC<CatalogBasedStatsProps> = ({
   brand,
   model,
   filters,
-}) => {
+}: CatalogBasedStatsProps) => {
   const [cars, setCars] = React.useState<CarVisibleCardPropsTypes[]>([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -147,12 +152,12 @@ export const CatalogBasedStats: React.FC<CatalogBasedStatsProps> = ({
         // Filter by body type if specified
         let filteredResults = response.results
         if (filters?.body) {
-          filteredResults = response.results.filter(car => 
+          filteredResults = response.results.filter((car: FastApiSearchCar) => 
             car.body && car.body.toLowerCase().includes(filters.body!.toLowerCase())
           )
         }
 
-        const mappedCars = filteredResults.map(mapToCarVisibleCard)
+        const mappedCars = filteredResults.map((car: FastApiSearchCar) => mapToCarVisibleCard(car))
         setCars(mappedCars)
 
         if (mappedCars.length === 0) {
@@ -174,8 +179,8 @@ export const CatalogBasedStats: React.FC<CatalogBasedStatsProps> = ({
   const stats = React.useMemo(() => {
     if (cars.length === 0) return null
 
-    const prices = cars.map(car => car.price).filter(p => p > 0)
-    const avgPrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0
+    const prices = cars.map((car: CarVisibleCardPropsTypes) => car.price).filter((p: number) => p > 0)
+    const avgPrice = prices.length > 0 ? prices.reduce((a: number, b: number) => a + b, 0) / prices.length : 0
     const minPrice = prices.length > 0 ? Math.min(...prices) : 0
     const maxPrice = prices.length > 0 ? Math.max(...prices) : 0
 
