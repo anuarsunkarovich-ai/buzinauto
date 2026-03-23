@@ -38,11 +38,11 @@ export const useBodyTypes = (
           minYear: 2020, // Recent cars to get relevant data
         })
 
-        // Extract unique body types from the results
+        // Extract unique model codes (кузов) from the results
         const bodyCounts = new Map<string, number>()
         response.results.forEach((car) => {
-          if (car.body && car.body.trim()) {
-            const body = car.body.trim()
+          if (car.model_code && car.model_code.trim()) {
+            const body = car.model_code.trim()
             bodyCounts.set(body, (bodyCounts.get(body) || 0) + 1)
           }
         })

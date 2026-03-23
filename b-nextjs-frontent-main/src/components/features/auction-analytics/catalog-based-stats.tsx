@@ -149,11 +149,11 @@ export const CatalogBasedStats: React.FC<CatalogBasedStatsProps> = ({
           maxPrice: undefined,
         })
 
-        // Filter by body type if specified
+        // Filter by model_code (код кузова) if specified
         let filteredResults = response.results
         if (filters?.body) {
           filteredResults = response.results.filter((car: FastApiSearchCar) => 
-            car.body && car.body.toLowerCase().includes(filters.body!.toLowerCase())
+            car.model_code && car.model_code.toLowerCase().includes(filters.body!.toLowerCase())
           )
         }
 

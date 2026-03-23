@@ -489,15 +489,15 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
                 md:col-span-1
               `}
             >
-              <FormLabel>Кузов автомобиля</FormLabel>
+              <FormLabel>Модель кузова</FormLabel>
               <FormControl>
                 <Combobox
                   className="select-none"
                   options={bodyOptions}
                   valueKey="id"
                   labelKey="name"
-                  placeholder={!selectedModel ? 'Сначала выберите модель' : 'Кузов...'}
-                  searchPlaceholder="Найти кузов..."
+                  placeholder={!selectedModel ? 'Сначала выберите модель' : 'Код кузова...'}
+                  searchPlaceholder="Найти код кузова..."
                   emptyMessage={
                     !selectedModel
                       ? 'Сначала выберите модель'
