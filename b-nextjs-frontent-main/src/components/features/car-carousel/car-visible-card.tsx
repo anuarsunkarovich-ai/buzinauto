@@ -141,7 +141,7 @@ export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
             {description}
           </Text>
           <Text as="small" className="cursor-pointer text-muted-foreground mt-1" onClick={navigateToCard}>
-            {horsepower ? `${horsepower} л.с.` : '—'} · {enginePower ? `${(enginePower / 1000).toFixed(1)} л.` : '—'}
+            {enginePower ? `${(enginePower / 1000).toFixed(1)} л.` : '—'} · {horsepower ? `${horsepower} л.с.` : '—'}
           </Text>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">

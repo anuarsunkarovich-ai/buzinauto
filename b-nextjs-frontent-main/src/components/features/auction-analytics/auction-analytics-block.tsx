@@ -6,6 +6,7 @@ import { SimpleLineChart } from './simple-line-chart'
 import { CarVisibleCard } from '@/components/features/car-carousel/car-visible-card'
 import { CarCarouselOnHoverCard } from '@/components/features/car-carousel/car-carousel-on-hover-card'
 import { toUrlSlug } from '@/lib/transform'
+import { PriceCalculator } from './price-calculator'
 
 export const AuctionAnalyticsBlock = async ({ 
   brand, 
@@ -48,7 +49,20 @@ export const AuctionAnalyticsBlock = async ({
             <div className="flex flex-col">
               <span className="text-2xl font-bold">{stats.avg_price_jpy.toLocaleString('ru-RU')} ¥</span>
               <span className="text-sm text-muted-foreground mt-1">
-                <span className="font-semibold text-foreground"><Money amount={stats.avg_price_rub} /></span> + расходы
+                {(() => {
+                  const avgLot = stats.recent_lots[0]
+                  if (avgLot) {
+                    return (
+                      <PriceCalculator 
+                        priceJpy={stats.avg_price_jpy}
+                        engineCc={Number(avgLot.engine_cc) || 2000}
+                        year={Number(avgLot.year) || 2020}
+                        horsepower={avgLot.horsepower || 150}
+                      />
+                    )
+                  }
+                  return <span className="font-semibold text-foreground"><Money amount={stats.avg_price_rub} /></span>
+                })()}
               </span>
             </div>
           </CardContent>

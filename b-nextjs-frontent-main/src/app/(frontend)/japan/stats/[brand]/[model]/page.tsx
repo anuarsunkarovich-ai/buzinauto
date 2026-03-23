@@ -70,6 +70,7 @@ export default async function JapanModelStatsPage({
                 minMileageKm: typeof searchParams.minMileageKm === 'string' ? searchParams.minMileageKm : undefined,
                 maxMileageKm: typeof searchParams.maxMileageKm === 'string' ? searchParams.maxMileageKm : undefined,
                 rating: typeof searchParams.rating === 'string' ? searchParams.rating : undefined,
+                body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
               }}
            />
         </div>

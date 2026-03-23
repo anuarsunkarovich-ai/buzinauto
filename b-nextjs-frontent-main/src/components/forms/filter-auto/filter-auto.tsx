@@ -458,6 +458,31 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
         />
         <FormField
           control={form.control}
+          name="body"
+          render={({ field }) => (
+            <FormItem
+              className={`
+                col-span-2
+                md:col-span-1
+              `}
+            >
+              <FormLabel>Кузов автомобиля</FormLabel>
+              <FormControl className="mb-0">
+                <Input
+                  className="select-none"
+                  placeholder="Кузов..."
+                  onChange={(event) => {
+                    field.onChange(event.target.value)
+                  }}
+                  value={field.value || ''}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
           name="minYear"
           render={({ field }) => (
             <FormItem
