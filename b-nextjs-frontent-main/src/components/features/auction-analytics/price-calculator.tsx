@@ -1,8 +1,5 @@
-'use client'
-
 import * as React from 'react'
 import { useCarFeeFuncEnum } from '@/hooks/use-car-fee-calc'
-import { EngineType } from '@/lib/calculator/car-fee-import-calc.type'
 
 interface PriceCalculatorProps {
   priceJpy: number
@@ -22,7 +19,7 @@ export const PriceCalculator: React.FC<PriceCalculatorProps> = ({
   const { totalRubAmount } = useCarFeeFuncEnum(
     priceJpy,
     'JPY',
-    EngineType.GASOLINE,
+    'gasoline',
     engineCc,
     horsepower,
     carAge,
