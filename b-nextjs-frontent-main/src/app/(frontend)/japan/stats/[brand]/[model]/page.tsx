@@ -43,6 +43,7 @@ export default async function JapanModelStatsPage({
     min_year: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
     max_year: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
     rating: typeof searchParams.rating === 'string' ? searchParams.rating : undefined,
+    body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
   }
 
   return (

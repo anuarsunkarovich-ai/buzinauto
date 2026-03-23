@@ -463,6 +463,7 @@ async def sync_cars(brand_id: str = "9", model_id: str = "718"):
 async def auction_stats(
     brand: str = Query("9", description="Brand ID or slug"),
     model: str = Query("", description="Model ID or slug (optional)"),
+    body: str | None = Query(None, description="Body type (optional)"),
     min_mileage_km: int = Query(None),
     max_mileage_km: int = Query(None),
     min_year: int = Query(None),
@@ -473,7 +474,7 @@ async def auction_stats(
     Results are cached in memory for 1 hour to incorporate current filters.
     """
     # ── Create unique cache key for current filter set ────────────────────────
-    filters_str = f"mil_{min_mileage_km}-{max_mileage_km}yr_{min_year}-{max_year}rtg_{rating}"
+    filters_str = f"mil_{min_mileage_km}-{max_mileage_km}yr_{min_year}-{max_year}rtg_{rating}_body_{body}"
     cache_key = f"{brand}::{model}::{filters_str}"
     
     cached = _STATS_CACHE.get(cache_key)
@@ -509,6 +510,9 @@ async def auction_stats(
         cars = [c for c in cars if _safe_number(c.get("year")) <= max_year]
     if rating:
         cars = [c for c in cars if str(c.get("grade") or c.get("rating", "")).strip().upper() == rating.strip().upper()]
+    if body:
+        norm_body = _normalize_token(body)
+        cars = [c for c in cars if _normalize_token(str(c.get("body") or "")) == norm_body]
 
     priced = [c for c in cars if _to_int_price(c.get("price_jpy", 0)) > 0]
 
@@ -531,7 +535,38 @@ async def auction_stats(
         return AuctionStatsResponse(**empty)
 
     # ── Aggregate stats ───────────────────────────────────────────────────────
-    prices_jpy = [_to_int_price(c["price_jpy"]) for c in priced]
+    # Use same calculator math as search_and_calculate to compute real RUB totals
+    total_rub_list: list[float] = []
+    prices_jpy = []
+    for c in priced:
+        lot_price_jpy = _to_int_price(c.get("price_jpy", 0))
+        prices_jpy.append(lot_price_jpy)
+        engine_cc = int(c.get("engine_cc") or 1500)
+        hp = int(_safe_number(c.get("horsepower")))
+        if hp <= 0:
+            hp = estimate_horsepower(engine_cc)
+
+        current_year = date.today().year
+        car_year = int(c["year"]) if str(c.get("year")).isdigit() else current_year - 4
+        age = current_year - car_year
+        age_cat = get_age_category_from_years(age)
+
+        calculation = run_total_calculation(
+            CalculationContext(
+                price_jpy=lot_price_jpy,
+                engine_volume=engine_cc,
+                horsepower=hp,
+                age_category=age_cat,
+                sell_rate=sell_rate,
+                eur_rate=get_euro_rate(),
+                usage_type="private",
+                user_type="individual",
+                engine_type=str(c.get("engine_type") or "gasoline"),
+                year=current_year,
+            )
+        )
+        total_rub_list.append(float(calculation.total_rub))
+
     avg_jpy = int(sum(prices_jpy) / len(prices_jpy))
     min_jpy = min(prices_jpy)
     max_jpy = max(prices_jpy)
@@ -570,22 +605,30 @@ async def auction_stats(
         for c in sorted_cars
     ]
 
+    avg_total_rub = round(sum(total_rub_list) / len(total_rub_list), 2) if total_rub_list else 0.0
+    min_total_rub = round(min(total_rub_list), 2) if total_rub_list else 0.0
+    max_total_rub = round(max(total_rub_list), 2) if total_rub_list else 0.0
+
     payload_dict: dict = {
         "status": "success",
         "brand": brand_name,
         "model": model_name,
         "total_lots": len(priced),
         "avg_price_jpy": avg_jpy,
-        "avg_price_rub": round(avg_jpy * sell_rate, 2),
+        "avg_price_rub": avg_total_rub,
         "price_range": {
             "min_jpy": min_jpy,
             "max_jpy": max_jpy,
-            "min_rub": round(min_jpy * sell_rate, 2),
-            "max_rub": round(max_jpy * sell_rate, 2),
+            "min_rub": min_total_rub,
+            "max_rub": max_total_rub,
         },
         "grade_distribution": grade_dist,
         "popular_modification": popular_modification,
-        "recent_lots": [lot.model_dump() for lot in recent_lots],
+        # Replace price_rub for recent lots with calculated total_rub when available
+        "recent_lots": [
+            dict(lot.model_dump(), price_rub=round(total_rub_list[idx], 2) if idx < len(total_rub_list) else lot.price_rub)
+            for idx, lot in enumerate(recent_lots)
+        ],
         "exchange_rate": sell_rate,
         "cached": False,
     }

@@ -20,6 +20,7 @@ export const AuctionAnalyticsBlock = async ({
     min_year?: number
     max_year?: number
     rating?: string
+    body?: string
   }
 }) => {
   const stats = await getAuctionStats(brand, model, filters)

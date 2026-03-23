@@ -48,6 +48,7 @@ export default async function JapanBrandStatsPage({
     min_year: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
     max_year: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
     rating: typeof searchParams.rating === 'string' ? searchParams.rating : undefined,
+    body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
   }
 
   return (
@@ -67,6 +68,7 @@ export default async function JapanBrandStatsPage({
           <FilterAuto
             defaultValues={{
               make: toValidSlug(brand),
+              body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
               minYear:
                 typeof searchParams.minYear === 'string' ? searchParams.minYear : undefined,
               maxYear:

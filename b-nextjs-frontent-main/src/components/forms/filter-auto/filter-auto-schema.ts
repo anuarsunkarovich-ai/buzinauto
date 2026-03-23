@@ -30,6 +30,7 @@ export const filterAutoSchema = z.object({
     .number()
     .optional()
     .refine((e) => e === undefined || e >= 0, 'Введите корректный объём двигателя'),
+  body: z.string().optional(),
   minPrice: z.coerce
     .number()
     .optional()

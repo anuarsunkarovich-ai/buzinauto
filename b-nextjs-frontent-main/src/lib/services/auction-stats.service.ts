@@ -45,6 +45,7 @@ export const getAuctionStats = async (
     min_year?: number
     max_year?: number
     rating?: string
+    body?: string
   }
 ): Promise<AuctionStatsResponse | null> => {
   const baseUrl = getRuntimeBackendApiUrl()
@@ -69,6 +70,9 @@ export const getAuctionStats = async (
   }
   if (filters?.rating) {
     url.searchParams.set('rating', filters.rating)
+  }
+  if (filters?.body) {
+    url.searchParams.set('body', filters.body)
   }
 
   try {

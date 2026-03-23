@@ -57,6 +57,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
     resolver: zodResolver(filterAutoSchema),
     defaultValues: {
       make: defaultValues?.make,
+      body: defaultValues?.body,
       model: defaultValues?.model,
       maxYear: defaultValues?.maxYear ? parseInt(defaultValues.maxYear) : undefined,
       minYear: defaultValues?.minYear ? parseInt(defaultValues.minYear) : undefined,
@@ -260,6 +261,9 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
       }
       if (values.auctionDate) {
         query.set('auctionDate', values.auctionDate)
+      }
+      if (values.body) {
+        query.set('body', values.body)
       }
 
       if (onSearch) {
