@@ -152,9 +152,11 @@ export const CatalogBasedStats: React.FC<CatalogBasedStatsProps> = ({
         // Filter by model_code (код кузова) if specified
         let filteredResults = response.results
         if (filters?.body) {
-          filteredResults = response.results.filter((car: FastApiSearchCar) => 
-            car.model_code && car.model_code.toLowerCase().includes(filters.body!.toLowerCase())
-          )
+          const selectedCode = filters.body.toUpperCase()
+          filteredResults = response.results.filter((car: FastApiSearchCar) => {
+            const carText = `${car.model_code || ''} ${car.model || ''} ${car.modification || ''}`.toUpperCase()
+            return carText.includes(selectedCode)
+          })
         }
 
         const mappedCars = filteredResults.map((car: FastApiSearchCar) => mapToCarVisibleCard(car))

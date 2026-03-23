@@ -13,6 +13,7 @@ export type SearchCarsParams = {
   maxEnginePower?: number
   minPrice?: number
   maxPrice?: number
+  limit?: number
 }
 
 export type FastApiSearchCar = {
@@ -109,12 +110,16 @@ const buildSearchUrl = (
     maxEnginePower,
     minPrice,
     maxPrice,
+    limit,
   }: SearchCarsParams,
 ) => {
   const url = new URL(`${baseUrl.replace(/\/$/, '')}/search`)
   url.searchParams.set('brand', brand)
   if (model) {
     url.searchParams.set('model', model)
+  }
+  if (limit) {
+    url.searchParams.set('limit', String(limit))
   }
   if (auctionDate) {
     url.searchParams.set('auction_date', auctionDate)
@@ -178,6 +183,7 @@ export const searchCars = async ({
   maxEnginePower,
   minPrice,
   maxPrice,
+  limit,
 }: SearchCarsParams): Promise<{ results: FastApiSearchCar[] }> => {
   const baseUrl = getRuntimeBackendApiUrl()
 
@@ -199,6 +205,7 @@ export const searchCars = async ({
       maxEnginePower,
       minPrice,
       maxPrice,
+      limit,
     }),
   )
 
