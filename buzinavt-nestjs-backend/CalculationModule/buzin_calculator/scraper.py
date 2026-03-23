@@ -595,6 +595,65 @@ def _extract_calc_src_from_detail(detail_soup: BeautifulSoup) -> str:
     return _absolute_aleado_url((calc_frame.get("src") or "").strip())
 
 
+def _reorder_image_urls(image_urls: list[str], detail_soup: BeautifulSoup, auction_sheet_url: str | None = None) -> list[str]:
+    """Reorder images so that front views come first, rear views second,
+    then other views, and ensure the auction/sheet image is last.
+
+    Uses simple keyword heuristics on URLs. Deduplicates while preserving
+    the desired ordering."""
+    if not image_urls:
+        return []
+
+    front_kw = ["front", "fr", "face", "facade", "перед", "前"]
+    rear_kw = ["rear", "back", "rear_view", "зад", "后"]
+    auction_kw = ["auction", "slot", "sheet", "lot", "project/slot", "auction_sheet"]
+
+    seen: set[str] = set()
+    front: list[str] = []
+    rear: list[str] = []
+    auction: list[str] = []
+    others: list[str] = []
+
+    def classify(url: str) -> None:
+        low = (url or "").lower()
+        for kw in front_kw:
+            if kw in low:
+                front.append(url)
+                return
+        for kw in rear_kw:
+            if kw in low:
+                rear.append(url)
+                return
+        for kw in auction_kw:
+            if kw in low:
+                auction.append(url)
+                return
+        others.append(url)
+
+    for u in image_urls:
+        if not u:
+            continue
+        if u in seen:
+            continue
+        seen.add(u)
+        classify(u)
+
+    ordered: list[str] = []
+    for bucket in (front, rear, others, auction):
+        for u in bucket:
+            if u not in ordered:
+                ordered.append(u)
+
+    # If auction_sheet_url is provided and is not an image in the list,
+    # append it at the end (user requested auction pic always last).
+    if auction_sheet_url:
+        norm_sheet = auction_sheet_url.strip()
+        if norm_sheet and norm_sheet not in ordered:
+            ordered.append(norm_sheet)
+
+    return ordered
+
+
 def _fetch_newcalc_modifications(model_id: str, year: str) -> list[dict[str, Any]]:
     if not model_id or not year:
         return []
@@ -765,14 +824,20 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
             "a",
             href=re.compile(r"p=project/slot", re.IGNORECASE),
         )
+        auction_sheet_url = (
+            _absolute_aleado_url(auction_sheet_link.get("href", ""))
+            if auction_sheet_link
+            else ""
+        )
+
+        ordered_images = _reorder_image_urls(image_urls, detail_soup, auction_sheet_url)
+
         payload = {
             "average_price_jpy": average_price,
             "horsepower": horsepower,
-            "image_url": image_urls[0] if image_urls else "",
-            "image_urls": image_urls,
-            "auction_sheet_url": _absolute_aleado_url(auction_sheet_link.get("href", ""))
-            if auction_sheet_link
-            else "",
+            "image_url": ordered_images[0] if ordered_images else "",
+            "image_urls": ordered_images,
+            "auction_sheet_url": auction_sheet_url,
         }
         _set_cached_payload(_LOT_DETAILS_CACHE, cache_key, payload)
         return dict(payload)
