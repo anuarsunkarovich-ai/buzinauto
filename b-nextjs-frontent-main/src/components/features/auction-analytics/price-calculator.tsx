@@ -37,3 +37,23 @@ export const PriceCalculator: React.FC<PriceCalculatorProps> = ({
     </span>
   )
 }
+
+// Server-side fallback component
+export const PriceCalculatorFallback: React.FC<{ priceJpy: number; priceRub?: number }> = ({ 
+  priceJpy, 
+  priceRub 
+}) => {
+  // Simple conversion fallback for server-side rendering
+  const estimatedRub = priceRub || Math.round(priceJpy * 0.58) // Rough JPY to RUB conversion
+  
+  return (
+    <span className="font-semibold text-foreground">
+      {new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(estimatedRub)} + расходы
+    </span>
+  )
+}

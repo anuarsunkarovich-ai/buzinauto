@@ -18,6 +18,7 @@ import { Ratings } from '@/constants/rating'
 import { useBrands } from '@/hooks/use-brands'
 import { useCurrency } from '@/hooks/use-currency'
 import { useModels } from '@/hooks/use-models'
+import { useBodyTypes } from '@/hooks/use-body-types'
 import { toModelDisplay, toUrlSlug } from '@/lib/transform'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { usePathname, useRouter } from 'next/navigation'
@@ -143,6 +144,14 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
     }
   }, [defaultValues?.make, form, selectedMake, selectedModel])
 
+  // Clear body field when model changes
+  React.useEffect(() => {
+    const currentBody = form.getValues('body')
+    if (currentBody && !selectedModel) {
+      form.setValue('body', '')
+    }
+  }, [selectedModel, form])
+
   const brandOptions = React.useMemo(
     () =>
       brands.map((brand) => ({
@@ -175,6 +184,20 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
     )
     return match?.modelSlug || match?.model || selectedModel
   }, [models, selectedModel])
+
+  const {
+    bodyTypes,
+    loading: bodyTypesLoading,
+  } = useBodyTypes(resolvedSelectedMake, resolvedSelectedModel, form.watch('saleCountry'), !!resolvedSelectedMake && !!resolvedSelectedModel)
+
+  const bodyOptions = React.useMemo(
+    () =>
+      bodyTypes.map((bodyType: any) => ({
+        id: bodyType.body,
+        name: bodyType.body,
+      })),
+    [bodyTypes],
+  )
 
   React.useEffect(() => {
     if (!defaultValues?.make || !brands.length) return
@@ -467,14 +490,26 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
               `}
             >
               <FormLabel>Кузов автомобиля</FormLabel>
-              <FormControl className="mb-0">
-                <Input
+              <FormControl>
+                <Combobox
                   className="select-none"
-                  placeholder="Кузов..."
-                  onChange={(event) => {
-                    field.onChange(event.target.value)
+                  options={bodyOptions}
+                  valueKey="id"
+                  labelKey="name"
+                  placeholder={!selectedModel ? 'Сначала выберите модель' : 'Кузов...'}
+                  searchPlaceholder="Найти кузов..."
+                  emptyMessage={
+                    !selectedModel
+                      ? 'Сначала выберите модель'
+                      : bodyTypesLoading
+                        ? 'Загрузка...'
+                        : 'Упс... Ничего не найдено'
+                  }
+                  disabled={!selectedModel}
+                  onChange={(value) => {
+                    field.onChange(value)
                   }}
-                  value={field.value || ''}
+                  value={field.value}
                 />
               </FormControl>
               <FormMessage />
