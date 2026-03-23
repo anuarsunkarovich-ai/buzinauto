@@ -22,6 +22,7 @@ from scraper import (
     fetch_aleado_average_price,
     fetch_aleado_data,
     fetch_aleado_filters,
+    fetch_aleado_lot_details,
     fetch_atb_jpy_rate,
     get_euro_rate,
 )
@@ -291,14 +292,26 @@ async def search_and_calculate(
         age_cat = get_age_category_from_years(age)
         lot_price_jpy = int(car["price_jpy"] or 0)
         engine_cc = int(car["engine_cc"]) if car["engine_cc"] else 1500
-        horsepower = int(_safe_number(car.get("horsepower"))) if car.get("horsepower") else 0
+        # Enrich from lot detail page: real horsepower, full image set, average price
+        details = await asyncio.to_thread(
+            fetch_aleado_lot_details, str(car.get("detail_link") or "")
+        )
+        detail_hp = int(_safe_number(details.get("horsepower"))) if details.get("horsepower") else 0
+        horsepower = (
+            detail_hp
+            or (int(_safe_number(car.get("horsepower"))) if car.get("horsepower") else 0)
+        )
         if horsepower <= 0:
             horsepower = estimate_horsepower(engine_cc)
-        average_price_jpy = await asyncio.to_thread(
-            fetch_aleado_average_price,
-            str(car.get("detail_link") or ""),
-        )
+
+        average_price_jpy = int(details.get("average_price_jpy") or 0)
         calculation_price_jpy = average_price_jpy or lot_price_jpy
+
+        # Prefer detail images if available
+        image_urls = details.get("image_urls") or car.get("image_urls") or []
+        car["image_urls"] = image_urls
+        car["image_url"] = details.get("image_url") or (image_urls[0] if image_urls else car.get("image_url", ""))
+        car["auction_sheet_url"] = details.get("auction_sheet_url") or car.get("auction_sheet_url", "")
         calculation = run_total_calculation(
             CalculationContext(
                 price_jpy=calculation_price_jpy,

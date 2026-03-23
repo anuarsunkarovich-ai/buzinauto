@@ -13,6 +13,8 @@ _ATB_CACHE = {"buy": 0.502, "sell": 0.55, "timestamp": 0.0}
 _ALEADO_SESSION_CACHE = {"cookies": None, "timestamp": 0.0}
 _FILTER_CACHE: dict[str, dict[str, Any]] = {}
 _AVERAGE_PRICE_CACHE: dict[str, dict[str, Any]] = {}
+_LOT_DETAILS_CACHE: dict[str, dict[str, Any]] = {}
+_MODIFICATIONS_CACHE: dict[str, dict[str, Any]] = {}
 
 ALEADO_BASE_URL = "https://auctions.aleado.ru"
 ALEADO_LOGIN_URL = f"{ALEADO_BASE_URL}/auth/login.php"
@@ -25,6 +27,8 @@ ALEADO_PASSWORD = os.getenv("ALEADO_PASSWORD", "Anuar1234")
 ALEADO_SESSION_TTL_SECONDS = 30 * 60
 FILTER_CACHE_TTL_SECONDS = 30 * 60
 AVERAGE_PRICE_CACHE_TTL_SECONDS = 30 * 60
+LOT_DETAILS_CACHE_TTL_SECONDS = 30 * 60
+MODIFICATIONS_CACHE_TTL_SECONDS = 6 * 3600
 
 ALEADO_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -101,6 +105,27 @@ def _get_cached_average_price(cache_key: str) -> int | None:
 
 def _set_cached_average_price(cache_key: str, data: int) -> None:
     _AVERAGE_PRICE_CACHE[cache_key] = {"data": int(data), "timestamp": time.time()}
+
+
+def _get_cached_payload(
+    cache: dict[str, dict[str, Any]],
+    cache_key: str,
+    ttl_seconds: int,
+) -> Any | None:
+    cached = cache.get(cache_key)
+    if not cached:
+        return None
+    if time.time() - cached["timestamp"] >= ttl_seconds:
+        return None
+    return cached["data"]
+
+
+def _set_cached_payload(
+    cache: dict[str, dict[str, Any]],
+    cache_key: str,
+    data: Any,
+) -> None:
+    cache[cache_key] = {"data": data, "timestamp": time.time()}
 
 
 def _build_aleado_client() -> httpx.Client:
@@ -526,50 +551,244 @@ def _decode_sajax_result(response_text: str) -> str:
     )
 
 
-def fetch_aleado_average_price(detail_link: str) -> int:
+def _get_lot_cache_key(detail_link: str) -> str:
     if not detail_link:
-        return 0
+        return ""
 
     parsed = urlparse(detail_link)
     lot_id = dict(parse_qsl(parsed.query)).get("id", "").strip()
-    cache_key = lot_id or detail_link
-    cached = _get_cached_average_price(cache_key)
+    return lot_id or detail_link
+
+
+def _extract_photo_urls_from_detail(detail_soup: BeautifulSoup) -> list[str]:
+    image_urls: list[str] = []
+    seen: set[str] = set()
+
+    for anchor in detail_soup.select('a[href*="i.aleado.ru/pic/"][href*="system=auto"]'):
+        href = (anchor.get("href") or "").strip()
+        if not href:
+            continue
+        normalized_url = _absolute_aleado_url(href.split("&h=")[0])
+        if normalized_url and normalized_url not in seen:
+            seen.add(normalized_url)
+            image_urls.append(normalized_url)
+
+    if image_urls:
+        return image_urls
+
+    for image in detail_soup.select('img[load_src], img[src*="i.aleado.ru/pic/"]'):
+        raw_url = (image.get("load_src") or image.get("src") or "").strip()
+        if not raw_url:
+            continue
+        normalized_url = _absolute_aleado_url(raw_url.split("&h=")[0].split("?w=")[0])
+        if normalized_url and normalized_url not in seen:
+            seen.add(normalized_url)
+            image_urls.append(normalized_url)
+
+    return image_urls
+
+
+def _extract_calc_src_from_detail(detail_soup: BeautifulSoup) -> str:
+    calc_frame = detail_soup.find("iframe", attrs={"id": "calc_frame"})
+    if not calc_frame:
+        return ""
+    return _absolute_aleado_url((calc_frame.get("src") or "").strip())
+
+
+def _fetch_newcalc_modifications(model_id: str, year: str) -> list[dict[str, Any]]:
+    if not model_id or not year:
+        return []
+
+    cache_key = f"{model_id}:{year}"
+    cached = _get_cached_payload(_MODIFICATIONS_CACHE, cache_key, MODIFICATIONS_CACHE_TTL_SECONDS)
     if cached is not None:
         return cached
 
     try:
+        response = _fetch_aleado_page(
+            "/newcalc",
+            params={
+                "rs": "putModificationsList",
+                "rsargs[]": [model_id, year],
+            },
+        )
+        modifications_html = _decode_sajax_result(response.text)
+        if not modifications_html:
+            _set_cached_payload(_MODIFICATIONS_CACHE, cache_key, [])
+            return []
+
+        soup = BeautifulSoup(modifications_html, "html.parser")
+        modifications: list[dict[str, Any]] = []
+
+        for row in soup.find_all("tr"):
+            output_input = row.find("input", attrs={"id": re.compile(r"^output_\d+$")})
+            if not output_input:
+                continue
+
+            row_id_match = re.search(r"output_(\d+)", output_input.get("id", "") or "")
+            if not row_id_match:
+                continue
+
+            row_index = row_id_match.group(1)
+            model_type_inputs = row.find_all(
+                "input",
+                attrs={"id": re.compile(rf"^model_type_{row_index}_\d+$")},
+            )
+            model_types = [
+                str(input_tag.get("value") or "").strip().upper()
+                for input_tag in model_type_inputs
+                if str(input_tag.get("value") or "").strip()
+            ]
+            if not model_types:
+                continue
+
+            cells = row.find_all("td")
+            grade = cells[0].get_text(" ", strip=True) if len(cells) > 0 else ""
+            engine_code = cells[2].get_text(" ", strip=True) if len(cells) > 2 else ""
+            displacement = _extract_first_number(
+                str(
+                    (
+                        row.find("input", attrs={"id": f"displacement_{row_index}"}) or {}
+                    ).get("value", "")
+                )
+            )
+            horsepower = _extract_first_number(str(output_input.get("value") or ""))
+            fuel_use = _extract_first_number(
+                str(
+                    (
+                        row.find("input", attrs={"id": f"fuel_use_{row_index}"}) or {}
+                    ).get("value", "")
+                )
+            )
+
+            modifications.append(
+                {
+                    "model_types": model_types,
+                    "grade": grade,
+                    "engine_code": engine_code,
+                    "displacement": displacement,
+                    "horsepower": horsepower,
+                    "fuel_use": fuel_use,
+                }
+            )
+
+        _set_cached_payload(_MODIFICATIONS_CACHE, cache_key, modifications)
+        return modifications
+    except Exception as exc:
+        print(f"DEBUG: Aleado modifications fetch failed: {exc}")
+        return []
+
+
+def _find_horsepower_from_calc_src(calc_src: str) -> int:
+    if not calc_src:
+        return 0
+
+    parsed_calc = urlparse(calc_src)
+    calc_params = dict(parse_qsl(parsed_calc.query, keep_blank_values=True))
+    model_id = str(calc_params.get("model_id") or "").strip()
+    year = str(calc_params.get("year") or "").strip()
+    target_model_type = str(calc_params.get("model_type") or "").strip().upper()
+    target_displacement = _extract_first_number(str(calc_params.get("disp") or ""))
+
+    modifications = _fetch_newcalc_modifications(model_id, year)
+    if not modifications:
+        return 0
+
+    if target_model_type:
+        for modification in modifications:
+            if target_model_type in modification["model_types"]:
+                return int(modification.get("horsepower") or 0)
+
+    if target_displacement > 0:
+        compatible = [
+            modification
+            for modification in modifications
+            if abs(int(modification.get("displacement") or 0) - target_displacement) <= 50
+        ]
+        if compatible:
+            return int(compatible[0].get("horsepower") or 0)
+
+    return int(modifications[0].get("horsepower") or 0)
+
+
+def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
+    if not detail_link:
+        return {
+            "average_price_jpy": 0,
+            "horsepower": 0,
+            "image_url": "",
+            "image_urls": [],
+            "auction_sheet_url": "",
+        }
+
+    cache_key = _get_lot_cache_key(detail_link)
+    cached = _get_cached_payload(_LOT_DETAILS_CACHE, cache_key, LOT_DETAILS_CACHE_TTL_SECONDS)
+    if cached is not None:
+        return dict(cached)
+
+    try:
+        average_price = _get_cached_average_price(cache_key) or 0
+        parsed = urlparse(detail_link)
         path = parsed.path or "/auctions/"
         base_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
         detail_response = _fetch_aleado_page(path, params=base_params)
+        detail_soup = BeautifulSoup(detail_response.text, "html.parser")
+        image_urls = _extract_photo_urls_from_detail(detail_soup)
+        calc_src = _extract_calc_src_from_detail(detail_soup)
+        horsepower = _find_horsepower_from_calc_src(calc_src)
         average_args = _extract_average_price_args(detail_response.text)
-        if len(average_args) < 9:
-            return 0
+        if average_price <= 0 and len(average_args) >= 9:
+            average_response = _fetch_aleado_page(
+                path,
+                params={
+                    **base_params,
+                    "rs": "getAveragePrice",
+                    "rst": "",
+                    "rsrnd": str(int(time.time() * 1000)),
+                    "rsargs[]": average_args,
+                },
+            )
+            average_html = _decode_sajax_result(average_response.text)
+            if average_html:
+                soup = BeautifulSoup(average_html, "html.parser")
+                average_node = soup.find(id="average-price-sum")
+                average_price = _extract_first_number(
+                    average_node.get_text(" ", strip=True)
+                    if average_node
+                    else soup.get_text(" ", strip=True)
+                )
 
-        average_response = _fetch_aleado_page(
-            path,
-            params={
-                **base_params,
-                "rs": "getAveragePrice",
-                "rst": "",
-                "rsrnd": str(int(time.time() * 1000)),
-                "rsargs[]": average_args,
-            },
-        )
-        average_html = _decode_sajax_result(average_response.text)
-        if not average_html:
-            return 0
-
-        soup = BeautifulSoup(average_html, "html.parser")
-        average_node = soup.find(id="average-price-sum")
-        average_price = _extract_first_number(
-            average_node.get_text(" ", strip=True) if average_node else soup.get_text(" ", strip=True)
-        )
         if average_price > 0:
             _set_cached_average_price(cache_key, average_price)
-        return average_price
+
+        auction_sheet_link = detail_soup.find(
+            "a",
+            href=re.compile(r"p=project/slot", re.IGNORECASE),
+        )
+        payload = {
+            "average_price_jpy": average_price,
+            "horsepower": horsepower,
+            "image_url": image_urls[0] if image_urls else "",
+            "image_urls": image_urls,
+            "auction_sheet_url": _absolute_aleado_url(auction_sheet_link.get("href", ""))
+            if auction_sheet_link
+            else "",
+        }
+        _set_cached_payload(_LOT_DETAILS_CACHE, cache_key, payload)
+        return dict(payload)
     except Exception as exc:
-        print(f"DEBUG: Aleado average price fetch failed: {exc}")
-        return 0
+        print(f"DEBUG: Aleado lot details fetch failed: {exc}")
+        return {
+            "average_price_jpy": 0,
+            "horsepower": 0,
+            "image_url": "",
+            "image_urls": [],
+            "auction_sheet_url": "",
+        }
+
+
+def fetch_aleado_average_price(detail_link: str) -> int:
+    return int(fetch_aleado_lot_details(detail_link).get("average_price_jpy") or 0)
 
 
 def fetch_aleado_data(brand: str, model: str) -> list[dict[str, Any]]:
