@@ -42,8 +42,8 @@ export default async function JapanModelStatsPage({
     max_mileage_km: typeof searchParams.maxMileageKm === 'string' ? parseInt(searchParams.maxMileageKm) : undefined,
     min_year: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
     max_year: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
-    min_grade: typeof searchParams.minGrade === 'string' ? searchParams.minGrade : undefined,
-    max_grade: typeof searchParams.maxGrade === 'string' ? searchParams.maxGrade : undefined,
+    minGrade: typeof searchParams.minGrade === 'string' ? searchParams.minGrade : undefined,
+    maxGrade: typeof searchParams.maxGrade === 'string' ? searchParams.maxGrade : undefined,
     body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
   }
 

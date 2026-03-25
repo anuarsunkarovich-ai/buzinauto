@@ -5,6 +5,7 @@ import { getPayloadConfig } from '../utils/payload-config'
 export interface ExchangeRateInfo {
   rate: number
   source: string
+  date?: string
 }
 
 export const getLatestExchangeRate = async (): Promise<ExchangeRateInfo | null> => {

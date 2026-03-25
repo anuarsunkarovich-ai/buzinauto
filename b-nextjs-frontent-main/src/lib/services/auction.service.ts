@@ -202,7 +202,7 @@ export const searchCars = async ({
   minPrice,
   maxPrice,
   limit,
-}: SearchCarsParams): Promise<{ results: FastApiSearchCar[]; exchange_rate?: number; rate_source?: string }> => {
+}: SearchCarsParams): Promise<{ results: FastApiSearchCar[]; exchange_rate?: number; rate_source?: string; rate_date?: string }> => {
   const baseUrl = getRuntimeBackendApiUrl()
 
   if (!baseUrl) {
@@ -244,5 +244,6 @@ export const searchCars = async ({
     results: data.results || [],
     exchange_rate: data.exchange_rate,
     rate_source: data.rate_source,
+    rate_date: data.rate_date,
   }
 }

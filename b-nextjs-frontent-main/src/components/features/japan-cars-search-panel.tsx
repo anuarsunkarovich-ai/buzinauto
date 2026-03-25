@@ -125,7 +125,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
   const [cars, setCars] = React.useState<CarVisibleCardPropsTypes[]>(initialItems)
   const [loading, setLoading] = React.useState(false)
   const [hasSubmittedSearch, setHasSubmittedSearch] = React.useState(false)
-  const [exchangeRate, setExchangeRate] = React.useState<{ rate: number; source: string } | null>(null)
+  const [exchangeRate, setExchangeRate] = React.useState<{ rate: number; source: string; date?: string } | null>(null)
 
   React.useEffect(() => {
     setCars(initialItems)
@@ -161,6 +161,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
           setExchangeRate({
             rate: response.exchange_rate,
             source: response.rate_source || 'ATB Bank',
+            date: response.rate_date,
           })
         }
       } finally {
@@ -178,6 +179,11 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
         {exchangeRate && (
           <Text as="small" className="text-muted-foreground bg-secondary/10 px-3 py-1.5 rounded-lg border border-border/50">
             Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> ({exchangeRate.source})
+            {exchangeRate.date && (
+              <span className="ml-2">
+                Актуальный курс йены банка АТБ на {exchangeRate.date} составляет: {exchangeRate.rate}
+              </span>
+            )}
           </Text>
         )}
         

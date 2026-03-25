@@ -97,6 +97,11 @@ export default async function HomePage({
         {exchangeRate && (
           <Text as="small" className="text-muted-foreground bg-secondary/10 px-3 py-1.5 rounded-lg border border-border/50">
             Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> ({exchangeRate.source})
+            {exchangeRate.date && (
+              <span className="ml-2">
+                Актуальный курс йены банка АТБ на {exchangeRate.date} составляет: {exchangeRate.rate}
+              </span>
+            )}
           </Text>
         )}
         <PayloadPaginationAuto path="/japan/cars" {...pagination} />

@@ -20,7 +20,7 @@ interface CatalogSearchParams {
 
 export const searchCatalogCars = async (
   params: CatalogSearchParams
-): Promise<{ items: CarVisibleCardPropsTypes[]; exchangeRate?: { rate: number; source: string } }> => {
+): Promise<{ items: CarVisibleCardPropsTypes[]; exchangeRate?: { rate: number; source: string; date?: string } }> => {
   const response = await searchCars({
     brand: params.brand || '9',
     model: params.model,
@@ -40,7 +40,7 @@ export const searchCatalogCars = async (
   const items = response.results.map((car, index) => mapFastApiCarToVisibleCard(car, index))
 
   const exchangeRate = response.exchange_rate && response.rate_source
-    ? { rate: response.exchange_rate, source: response.rate_source }
+    ? { rate: response.exchange_rate, source: response.rate_source, date: response.rate_date }
     : undefined
 
   return { items, exchangeRate }

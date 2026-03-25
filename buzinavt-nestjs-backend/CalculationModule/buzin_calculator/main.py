@@ -4,7 +4,7 @@ import time
 from collections import Counter
 
 import asyncio
-from datetime import date
+from datetime import date, datetime
 import re
 
 from fastapi import FastAPI, Query
@@ -133,6 +133,7 @@ def get_age_category_from_years(age: int) -> str:
 class RateResponse(BaseModel):
     rate: float
     source: str
+    date: str | None = None
 
 
 # ── Auction Stats types ───────────────────────────────────────────────────────
@@ -176,6 +177,7 @@ class AuctionStatsResponse(BaseModel):
     recent_lots: list[RecentLot]
     exchange_rate: float
     cached: bool
+    rate_date: str | None = None
 
 
 # ── In-memory stats cache (TTL = 8 hours) ─────────────────────────────────────
@@ -186,7 +188,7 @@ STATS_CACHE_TTL = 8 * 3600  # 8 hours
 @app.get("/api/v1/rate", response_model=RateResponse)
 def get_exchange_rate() -> RateResponse:
     rates = fetch_atb_jpy_rate()
-    return RateResponse(rate=rates["buy"], source="ATB Bank")
+    return RateResponse(rate=rates["buy"], source="ATB Bank", date=datetime.now().strftime("%d.%m.%Y"))
 
 
 @app.get("/api/v1/rate/v6/{api_key}/latest/RUB")
@@ -237,7 +239,7 @@ async def search_and_calculate(
     usage_type: str = "private",
 ):
     rates = fetch_atb_jpy_rate()
-    sell_rate = rates["buy"]
+    sell_rate = rates["sell"]
     buy_rate = rates["buy"]
     eur_rate = get_euro_rate()
     resolved_brand, resolved_model, model_matched = resolve_aleado_ids(brand, model)
@@ -398,6 +400,7 @@ async def search_and_calculate(
         "results": enriched,
         "exchange_rate": sell_rate,
         "rate_source": "ATB Bank",
+        "rate_date": datetime.now().strftime("%d.%m.%Y"),
     }
 
 
@@ -502,7 +505,8 @@ async def auction_stats(
 
     # ── Fetch raw lots ────────────────────────────────────────────────────────
     rates = fetch_atb_jpy_rate()
-    sell_rate = rates["buy"]
+    sell_rate = rates["sell"]
+    buy_rate = rates["buy"]
 
     cars = await asyncio.to_thread(fetch_aleado_data, resolved_brand, resolved_model, search_type="stats", body=str(body or ""))
 
@@ -555,6 +559,7 @@ async def auction_stats(
             "recent_lots": [],
             "exchange_rate": sell_rate,
             "cached": False,
+            "rate_date": datetime.now().strftime("%d.%m.%Y"),
         }
         _STATS_CACHE[cache_key] = {"data": empty, "ts": time.time()}
         return AuctionStatsResponse(**empty)
@@ -656,6 +661,7 @@ async def auction_stats(
         ],
         "exchange_rate": sell_rate,
         "cached": False,
+        "rate_date": datetime.now().strftime("%d.%m.%Y"),
     }
 
     _STATS_CACHE[cache_key] = {"data": payload_dict, "ts": time.time()}

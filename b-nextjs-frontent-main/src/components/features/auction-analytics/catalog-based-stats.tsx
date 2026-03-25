@@ -5,106 +5,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Text } from '@/components/ui/text'
 import { CarCarouselOnHover } from '@/components/features/car-carousel/car-carousel-on-hover'
 import type { CarVisibleCardPropsTypes } from '@/components/features/car-carousel/car-visible-card'
-import { searchCars } from '@/lib/services/auction.service'
+import { getAuctionStats } from '@/lib/services/auction-stats.service'
 import { toModelDisplay, toUrlSlug } from '@/lib/transform'
 import { filterAutoSchema } from '@/components/forms/filter-auto/filter-auto-schema'
 import { z } from 'zod'
 
-type FastApiSearchCar = Awaited<ReturnType<typeof searchCars>>['results'][number]
 type SearchValues = z.infer<typeof filterAutoSchema>
-
-const pickImage = (car: FastApiSearchCar) => {
-  return car.image_url || car.image_urls?.[0] || '/static/img/loading72.gif'
-}
-
-const buildImages = (car: FastApiSearchCar, fallbackAlt: string) => {
-  const sources = car.image_urls?.length ? car.image_urls : [pickImage(car)]
-
-  return sources
-    .filter(Boolean)
-    .map((src, index) => ({
-      src,
-      alt: index === 0 ? fallbackAlt : `${fallbackAlt} ${index + 1}`,
-    }))
-}
-
-const normalizeCarText = (value: string | number | undefined | null) =>
-  String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9а-яё]+/gi, '')
-
-const buildUniqueCarTextParts = (parts: Array<string | number | undefined | null>) => {
-  return parts.reduce<string[]>((acc, part) => {
-    const rawPart = String(part || '').trim()
-    if (!rawPart) {
-      return acc
-    }
-
-    const normalizedPart = normalizeCarText(rawPart)
-    if (!normalizedPart) {
-      return acc
-    }
-
-    if (acc.some((accPart) => normalizeCarText(accPart) === normalizedPart)) {
-      return acc
-    }
-
-    acc.push(rawPart)
-    return acc
-  }, [])
-}
-
-const mapToCarVisibleCard = (car: FastApiSearchCar): CarVisibleCardPropsTypes => {
-  const year = Number(car.year || 0)
-  const enginePower = Number(car.engine_cc || 0)
-  const priceJpy = Number(car.price_jpy || 0)
-  const horsepower = Number(car.horsepower || 0)
-  
-  const initialTotalRub = car.total_rub || car.price_details?.total_rub || 0
-  
-  const imageAlt = buildUniqueCarTextParts([
-    car.brand,
-    car.modelDisplay || car.model,
-    car.modification,
-    car.body,
-    year,
-    enginePower ? `${enginePower} cc` : undefined,
-  ]).join(' ') || 'Автомобиль'
-
-  return {
-    id: String(car.lot || Math.random()),
-    title: `${toModelDisplay(car.brand || '')} ${toModelDisplay(car.modelDisplay || car.model || '')}`,
-    lot: car.lot,
-    brandSlug: toUrlSlug(car.brand || ''),
-    modelSlug: toUrlSlug(car.modelDisplay || car.model || ''),
-    countryPath: '/japan',
-    description: buildUniqueCarTextParts([
-      car.grade,
-      car.model_code,
-      car.color,
-      car.transmission,
-      car.grade,
-      enginePower ? `${enginePower} cc` : undefined,
-    ]).join(' '),
-    tags: buildUniqueCarTextParts([
-      car.transmission,
-      car.grade,
-      car.body,
-    ]),
-    price: priceJpy,
-    currency: 'JPY',
-    year,
-    horsepower,
-    enginePower,
-    engineType: 'gasoline',
-    location: [car.auction_name, car.auction].filter(Boolean).join(' ') || 'Japan',
-    auctionDate: car.auction_date,
-    rating: car.rating || undefined,
-    initialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
-    initialCommercialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
-    images: buildImages(car, imageAlt),
-  }
-}
 
 interface CatalogBasedStatsProps {
   brand: string
@@ -114,7 +20,8 @@ interface CatalogBasedStatsProps {
     max_mileage_km?: number
     min_year?: number
     max_year?: number
-    rating?: string
+    minGrade?: string
+    maxGrade?: string
     body?: string
   }
 }
@@ -134,32 +41,46 @@ export const CatalogBasedStats: React.FC<CatalogBasedStatsProps> = ({
       setError(null)
 
       try {
-        const response = await searchCars({
+        const response = await getAuctionStats(
           brand,
           model,
-          auctionDate: undefined,
-          rating: filters?.rating,
-          minYear: filters?.min_year,
-          maxYear: filters?.max_year,
-          minMileageKm: filters?.min_mileage_km,
-          maxMileageKm: filters?.max_mileage_km,
-          minEnginePower: undefined,
-          maxEnginePower: undefined,
-          minPrice: undefined,
-          maxPrice: undefined,
-        })
+          {
+            min_mileage_km: filters?.min_mileage_km,
+            max_mileage_km: filters?.max_mileage_km,
+            min_year: filters?.min_year,
+            max_year: filters?.max_year,
+            rating: filters?.minGrade || filters?.maxGrade ? `${filters?.minGrade || ''}-${filters?.maxGrade || ''}` : undefined,
+            body: filters?.body,
+          }
+        )
 
-        // Filter by model_code (код кузова) if specified
-        let filteredResults = response.results
-        if (filters?.body) {
-          const selectedCode = filters.body.toUpperCase()
-          filteredResults = response.results.filter((car: FastApiSearchCar) => {
-            const carText = `${car.model_code || ''} ${car.model || ''} ${car.modification || ''}`.toUpperCase()
-            return carText.includes(selectedCode)
-          })
+        if (!response) {
+          setError('Не удалось загрузить статистику')
+          return
         }
 
-        const mappedCars = filteredResults.map((car: FastApiSearchCar) => mapToCarVisibleCard(car))
+        const mappedCars = response.recent_lots.map((lot: any) => ({
+          id: lot.lot,
+          title: `${lot.brand} ${lot.model}`,
+          lot: lot.lot,
+          brandSlug: brand.toLowerCase(),
+          modelSlug: model?.toLowerCase() || '',
+          countryPath: '/japan',
+          description: `${lot.year} ${lot.grade}`,
+          tags: [lot.grade, lot.body].filter(Boolean),
+          price: lot.price_jpy,
+          currency: 'JPY',
+          year: lot.year,
+          horsepower: lot.horsepower || 0,
+          enginePower: lot.engine_cc || 0,
+          engineType: 'gasoline' as const,
+          location: lot.auction_name || 'Japan',
+          auctionDate: lot.auction_date,
+          rating: lot.grade,
+          initialTotalRub: lot.price_rub,
+          images: lot.image_url ? [{ src: lot.image_url, alt: `${lot.brand} ${lot.model}` }] : [],
+        }))
+        
         setCars(mappedCars)
 
         if (mappedCars.length === 0) {
@@ -177,7 +98,7 @@ export const CatalogBasedStats: React.FC<CatalogBasedStatsProps> = ({
     fetchStats()
   }, [brand, model, filters])
 
-  // Calculate statistics from the cars data
+  // Calculate statistics from the API response
   const stats = React.useMemo(() => {
     if (cars.length === 0) return null
 
