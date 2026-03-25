@@ -1,27 +1,26 @@
 import { BoxContainer } from '@/components/common/containers/box-container'
 import { FullContainer } from '@/components/common/containers/full-container'
 import { AppBreadcrumb } from '@/components/features/breadcrumb'
+import { CarCarouselOnHover } from '@/components/features/car-carousel/car-carousel-on-hover'
 import { CarouselBrand } from '@/components/features/carousel-brand'
-import { JapanCarsSearchPanel } from '@/components/features/japan-cars-search-panel'
+import { FilterAuto } from '@/components/forms/filter-auto/filter-auto'
 import { FaqConcat } from '@/components/features/faq'
 import { Reviews } from '@/components/features/reviews/reviews'
 import { TimelineBuyAuto } from '@/components/features/timeline-buy-auto'
-import { AuctionAnalyticsBlock } from '@/components/features/auction-analytics/auction-analytics-block'
-import { BarChart3 } from 'lucide-react'
 import { Footer } from '@/components/layout/footer'
 import { Header } from '@/components/layout/headers/header'
 import { Title } from '@/components/ui/title'
+import { Text } from '@/components/ui/text'
 import { Button } from '@/components/ui/button'
 import { Href } from '@/components/ui/href'
+import { BarChart3 } from 'lucide-react'
 import { HOME_BREADCRUMB, JAPAN_CAR_BREADCRUMB, JAPAN_CAR_ROOT } from '@/constants/breadcrumb'
 import { Country } from '@/constants/country'
 import { FAQJapanData } from '@/constants/faq'
 import { generateDescription, generateH1, generateTitle } from '@/constants/meta'
-import { mapperToCar } from '@/lib/mappers/car-catalog.mapper'
-import { getManyCatalogCarPromise } from '@/lib/query/query-promise'
+import { searchCatalogCars } from '@/lib/services/catalog-search.service'
 import { toReadableSlug, toValidSlug } from '@/lib/transform'
 import { Metadata } from 'next'
-import * as React from 'react'
 
 export const revalidate = 300
 
@@ -50,10 +49,9 @@ export async function generateMetadata({ params: paramsPromise }: Params): Promi
 export default async function JapanCarsPage({ params: paramsPromise, searchParams }: Params) {
   const { brand, model } = await paramsPromise
   const params = await searchParams
-  const { docs } = await getManyCatalogCarPromise(1, {
+  const { items, exchangeRate } = await searchCatalogCars({
     brand: toValidSlug(brand),
-    model,
-    country: Country.JAPAN,
+    model: model,
     minYear: typeof params['minYear'] === 'string' ? parseInt(params['minYear']) : undefined,
     maxYear: typeof params['maxYear'] === 'string' ? parseInt(params['maxYear']) : undefined,
     minEnginePower:
@@ -64,14 +62,12 @@ export default async function JapanCarsPage({ params: paramsPromise, searchParam
     maxPrice: typeof params['maxPrice'] === 'string' ? parseInt(params['maxPrice']) : undefined,
     minGrade: params['minGrade'] as string | undefined,
     maxGrade: params['maxGrade'] as string | undefined,
-    maxMilage:
-      typeof params['maxMileageKm'] === 'string' ? parseInt(params['maxMileageKm']) : undefined,
-    minMilage:
+    minMileageKm:
       typeof params['minMileageKm'] === 'string' ? parseInt(params['minMileageKm']) : undefined,
+    maxMileageKm:
+      typeof params['maxMileageKm'] === 'string' ? parseInt(params['maxMileageKm']) : undefined,
     body: params['body'] as string | undefined,
   })
-
-  const items = docs.map((car) => mapperToCar(car)).filter((e) => !!e)
 
   return (
     <div className="flex flex-col space-y-3 md:space-y-10">
@@ -92,9 +88,14 @@ export default async function JapanCarsPage({ params: paramsPromise, searchParam
         <Title as="h1">
           {generateH1.middleAuctionJapan('', `${toReadableSlug(brand)} ${toReadableSlug(model)}`)}
         </Title>
+        
+        {exchangeRate && (
+          <Text as="small" className="text-muted-foreground bg-secondary/10 px-3 py-1.5 rounded-lg border border-border/50">
+            Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> ({exchangeRate.source})
+          </Text>
+        )}
 
-        <JapanCarsSearchPanel
-          initialItems={items}
+        <FilterAuto
           defaultValues={{
             make: toValidSlug(brand),
             model: model,
@@ -115,14 +116,15 @@ export default async function JapanCarsPage({ params: paramsPromise, searchParam
             body: params['body'] as string | undefined,
           }}
         />
+        <CarCarouselOnHover items={items} />
 
         <div className="mt-8 flex justify-center">
-            <Href href={`/japan/stats/${brand}/${model}`}>
-              <Button variant="link" className="text-muted-foreground flex items-center gap-2">
-                <BarChart3 className="w-4 h-4" />
-                Смотреть детальную статистику рынка для {toReadableSlug(brand)} {toReadableSlug(model)}
-              </Button>
-            </Href>
+          <Href href={`/japan/stats/${brand}/${model}`}>
+            <Button variant="link" className="text-muted-foreground flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Смотреть детальную статистику рынка для {toReadableSlug(brand)} {toReadableSlug(model)}
+            </Button>
+          </Href>
         </div>
       </BoxContainer>
       <BoxContainer>

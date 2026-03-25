@@ -186,14 +186,14 @@ STATS_CACHE_TTL = 8 * 3600  # 8 hours
 @app.get("/api/v1/rate", response_model=RateResponse)
 def get_exchange_rate() -> RateResponse:
     rates = fetch_atb_jpy_rate()
-    return RateResponse(rate=rates["sell"], source="ATB Bank")
+    return RateResponse(rate=rates["buy"], source="ATB Bank")
 
 
 @app.get("/api/v1/rate/v6/{api_key}/latest/RUB")
 @app.get("/api/v1/rate/latest/RUB")
 def get_mock_exchange_rate(api_key: str = None):
     rates = fetch_atb_jpy_rate()
-    rate_rub_per_jpy = rates["sell"]
+    rate_rub_per_jpy = rates["buy"]
     return {
         "result": "success",
         "doc": "https://www.exchangerate-api.com/docs",
@@ -237,7 +237,7 @@ async def search_and_calculate(
     usage_type: str = "private",
 ):
     rates = fetch_atb_jpy_rate()
-    sell_rate = rates["sell"]
+    sell_rate = rates["buy"]
     buy_rate = rates["buy"]
     eur_rate = get_euro_rate()
     resolved_brand, resolved_model, model_matched = resolve_aleado_ids(brand, model)
@@ -502,7 +502,7 @@ async def auction_stats(
 
     # ── Fetch raw lots ────────────────────────────────────────────────────────
     rates = fetch_atb_jpy_rate()
-    sell_rate = rates["sell"]
+    sell_rate = rates["buy"]
 
     cars = await asyncio.to_thread(fetch_aleado_data, resolved_brand, resolved_model, search_type="stats", body=str(body or ""))
 

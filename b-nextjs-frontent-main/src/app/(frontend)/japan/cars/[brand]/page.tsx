@@ -1,20 +1,21 @@
 import { BoxContainer } from '@/components/common/containers/box-container'
 import { FullContainer } from '@/components/common/containers/full-container'
 import { AppBreadcrumb } from '@/components/features/breadcrumb'
+import { CarCarouselOnHover } from '@/components/features/car-carousel/car-carousel-on-hover'
 import { CarouselBrand } from '@/components/features/carousel-brand'
-import { JapanCarsSearchPanel } from '@/components/features/japan-cars-search-panel'
+import { FilterAuto } from '@/components/forms/filter-auto/filter-auto'
 import { FaqConcat } from '@/components/features/faq'
 import { Reviews } from '@/components/features/reviews/reviews'
 import { TimelineBuyAuto } from '@/components/features/timeline-buy-auto'
 import { Footer } from '@/components/layout/footer'
 import { Header } from '@/components/layout/headers/header'
 import { Title } from '@/components/ui/title'
+import { Text } from '@/components/ui/text'
 import { HOME_BREADCRUMB, JAPAN_CAR_BREADCRUMB, JAPAN_CAR_ROOT } from '@/constants/breadcrumb'
 import { Country } from '@/constants/country'
 import { FAQJapanData } from '@/constants/faq'
 import { generateDescription, generateH1, generateTitle } from '@/constants/meta'
-import { mapperToCar } from '@/lib/mappers/car-catalog.mapper'
-import { getManyCatalogCarPromise } from '@/lib/query/query-promise'
+import { searchCatalogCars } from '@/lib/services/catalog-search.service'
 import { toReadableSlug, toValidSlug } from '@/lib/transform'
 import { Metadata } from 'next'
 
@@ -40,9 +41,8 @@ export async function generateMetadata({ params: paramsPromise }: Params): Promi
 export default async function JapanCarsPage({ params: paramsPromise, searchParams }: Params) {
   const { brand } = await paramsPromise
   const params = await searchParams
-  const { docs } = await getManyCatalogCarPromise(1, {
+  const { items, exchangeRate } = await searchCatalogCars({
     brand: toValidSlug(brand),
-    country: Country.JAPAN,
     minYear: typeof params['minYear'] === 'string' ? parseInt(params['minYear']) : undefined,
     maxYear: typeof params['maxYear'] === 'string' ? parseInt(params['maxYear']) : undefined,
     minEnginePower:
@@ -53,14 +53,12 @@ export default async function JapanCarsPage({ params: paramsPromise, searchParam
     maxPrice: typeof params['maxPrice'] === 'string' ? parseInt(params['maxPrice']) : undefined,
     minGrade: params['minGrade'] as string | undefined,
     maxGrade: params['maxGrade'] as string | undefined,
-    maxMilage:
-      typeof params['maxMileageKm'] === 'string' ? parseInt(params['maxMileageKm']) : undefined,
-    minMilage:
+    minMileageKm:
       typeof params['minMileageKm'] === 'string' ? parseInt(params['minMileageKm']) : undefined,
+    maxMileageKm:
+      typeof params['maxMileageKm'] === 'string' ? parseInt(params['maxMileageKm']) : undefined,
     body: params['body'] as string | undefined,
   })
-
-  const items = docs.map((car) => mapperToCar(car)).filter((e) => !!e)
 
   return (
     <div className="flex flex-col space-y-3 md:space-y-10">
@@ -75,8 +73,14 @@ export default async function JapanCarsPage({ params: paramsPromise, searchParam
           ]}
         />
         <Title as="h1">{generateH1.middleAuctionJapan('', toReadableSlug(brand))}</Title>
-        <JapanCarsSearchPanel
-          initialItems={items}
+        
+        {exchangeRate && (
+          <Text as="small" className="text-muted-foreground bg-secondary/10 px-3 py-1.5 rounded-lg border border-border/50">
+            Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> ({exchangeRate.source})
+          </Text>
+        )}
+        
+        <FilterAuto
           defaultValues={{
             make: toValidSlug(brand),
             minYear: typeof params['minYear'] === 'string' ? params['minYear'] : undefined,
@@ -89,13 +93,14 @@ export default async function JapanCarsPage({ params: paramsPromise, searchParam
             maxPrice: typeof params['maxPrice'] === 'string' ? params['maxPrice'] : undefined,
             minGrade: params['minGrade'] as string | undefined,
             maxGrade: params['maxGrade'] as string | undefined,
-            maxMileageKm:
-              typeof params['maxMileageKm'] === 'string' ? params['maxMileageKm'] : undefined,
             minMileageKm:
               typeof params['minMileageKm'] === 'string' ? params['minMileageKm'] : undefined,
+            maxMileageKm:
+              typeof params['maxMileageKm'] === 'string' ? params['maxMileageKm'] : undefined,
             body: params['body'] as string | undefined,
           }}
         />
+        <CarCarouselOnHover items={items} />
       </BoxContainer>
       <BoxContainer>
         <Title as="h2" className="text-center">

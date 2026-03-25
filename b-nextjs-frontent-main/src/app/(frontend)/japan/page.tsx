@@ -13,12 +13,14 @@ import { NavButtons } from '@/components/features/nav-buttons/nav-buttons'
 import { Footer } from '@/components/layout/footer'
 import { Header } from '@/components/layout/headers/header'
 import { Title } from '@/components/ui/title'
+import { Text } from '@/components/ui/text'
 import { HOME_BREADCRUMB, JAPAN_CAR_ROOT } from '@/constants/breadcrumb'
 import { Country } from '@/constants/country'
 import { FAQJapanData } from '@/constants/faq'
 import { generateDescription, generateH1, generateTitle } from '@/constants/meta'
 import { mapperToCar } from '@/lib/mappers/car-catalog.mapper'
 import { getManyCatalogCarPromise } from '@/lib/query/query-promise'
+import { getLatestExchangeRate } from '@/lib/services/exchange-rate.service'
 
 export const revalidate = 300
 
@@ -37,24 +39,27 @@ export default async function HomePage({
 }) {
   const params = await searchParams
 
-  const { docs, ...pagination } = await getManyCatalogCarPromise(1, {
-    country: Country.JAPAN,
-    minYear: typeof params['minYear'] === 'string' ? parseInt(params['minYear']) : undefined,
-    maxYear: typeof params['maxYear'] === 'string' ? parseInt(params['maxYear']) : undefined,
-    minEnginePower:
-      typeof params['minEnginePower'] === 'string' ? parseInt(params['minEnginePower']) : undefined,
-    maxEnginePower:
-      typeof params['maxEnginePower'] === 'string' ? parseInt(params['maxEnginePower']) : undefined,
-    minPrice: typeof params['minPrice'] === 'string' ? parseInt(params['minPrice']) : undefined,
-    maxPrice: typeof params['maxPrice'] === 'string' ? parseInt(params['maxPrice']) : undefined,
-    minGrade: params['minGrade'] as string | undefined,
-    maxGrade: params['maxGrade'] as string | undefined,
-    maxMilage:
-      typeof params['maxMileageKm'] === 'string' ? parseInt(params['maxMileageKm']) : undefined,
-    minMilage:
-      typeof params['minMileageKm'] === 'string' ? parseInt(params['minMileageKm']) : undefined,
-    body: params['body'] as string | undefined,
-  })
+  const [{ docs, ...pagination }, exchangeRate] = await Promise.all([
+    getManyCatalogCarPromise(1, {
+      country: Country.JAPAN,
+      minYear: typeof params['minYear'] === 'string' ? parseInt(params['minYear']) : undefined,
+      maxYear: typeof params['maxYear'] === 'string' ? parseInt(params['maxYear']) : undefined,
+      minEnginePower:
+        typeof params['minEnginePower'] === 'string' ? parseInt(params['minEnginePower']) : undefined,
+      maxEnginePower:
+        typeof params['maxEnginePower'] === 'string' ? parseInt(params['maxEnginePower']) : undefined,
+      minPrice: typeof params['minPrice'] === 'string' ? parseInt(params['minPrice']) : undefined,
+      maxPrice: typeof params['maxPrice'] === 'string' ? parseInt(params['maxPrice']) : undefined,
+      minGrade: params['minGrade'] as string | undefined,
+      maxGrade: params['maxGrade'] as string | undefined,
+      maxMilage:
+        typeof params['maxMileageKm'] === 'string' ? parseInt(params['maxMileageKm']) : undefined,
+      minMilage:
+        typeof params['minMileageKm'] === 'string' ? parseInt(params['minMileageKm']) : undefined,
+      body: params['body'] as string | undefined,
+    }),
+    getLatestExchangeRate(),
+  ])
 
   const items = docs.map((car) => mapperToCar(car)).filter((e) => !!e)
 
@@ -89,6 +94,11 @@ export default async function HomePage({
             body: params['body'] as string | undefined,
           }}
         />
+        {exchangeRate && (
+          <Text as="small" className="text-muted-foreground bg-secondary/10 px-3 py-1.5 rounded-lg border border-border/50">
+            Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> ({exchangeRate.source})
+          </Text>
+        )}
         <PayloadPaginationAuto path="/japan/cars" {...pagination} />
         <CarCarouselOnHover items={items} />
       </BoxContainer>
