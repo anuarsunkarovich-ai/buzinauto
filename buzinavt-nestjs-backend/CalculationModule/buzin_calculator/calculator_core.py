@@ -42,6 +42,7 @@ class CalculationContext:
     horsepower: int
     age_category: str
     sell_rate: float
+    buy_rate: float
     eur_rate: float
     user_type: str = INDIVIDUAL_IMPORTER
     usage_type: str = PRIVATE_USAGE
@@ -296,15 +297,15 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
     )
 
     # Calculate Japan expenses based on engine volume (JPY)
-    # Scenario 1: Engine <= 2000cc -> 162,500 JPY
-    # Scenario 2: Engine > 2000cc -> 700,000 JPY
-    if context.engine_volume > 2000:
+    # Scenario 1: Engine < 2000cc -> 162,500 JPY
+    # Scenario 2: Engine >= 2000cc -> 700,000 JPY
+    if context.engine_volume >= 2000:
         japan_expenses_jpy = Decimal("700000")
     else:
         japan_expenses_jpy = Decimal("162500")
 
     auction_rub = quantize_money(_as_decimal(context.price_jpy) * sell_rate)
-    japan_expenses_rub = quantize_money(japan_expenses_jpy * sell_rate)
+    japan_expenses_rub = quantize_money(japan_expenses_jpy * buy_rate)
     customs_duty_core_rub, customs_processing_fee_rub = calculate_customs_duty_rub(
         price_jpy=context.price_jpy,
         engine_volume=context.engine_volume,
