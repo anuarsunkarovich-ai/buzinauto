@@ -19,7 +19,6 @@ class CostBreakdown(BaseModel):
     customs_processing_fee_rub: float = 0
     excise_rub: float = 0
     util_fee_rub: float = 0
-    svh_transport_rub: float = 0
     company_commission: float = 0
     duty_buffer_rub: float = 0
     effective_user_type: str = "individual"

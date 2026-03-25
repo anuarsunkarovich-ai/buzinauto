@@ -36,7 +36,6 @@ type CalculationResponse = {
     customs_broker_rub?: number
     customs_duty_rub?: number
     util_fee_rub?: number
-    svh_transport_rub?: number
     company_commission?: number
   }
 }
@@ -182,7 +181,6 @@ export const PriceCalculationModule: React.FC = () => {
   const brokerRub = Math.round(result?.breakdown?.customs_broker_rub || 45000)
   const dutyRub = Math.round(result?.breakdown?.customs_duty_rub || 0)
   const utilRub = Math.round(result?.breakdown?.util_fee_rub || 0)
-  const transportRub = Math.round(result?.breakdown?.svh_transport_rub || 0)
   const totalRub = Math.round(result?.total_rub || 0)
 
   const selectedCityLabel =
@@ -402,6 +400,24 @@ export const PriceCalculationModule: React.FC = () => {
             ]}
           />
 
+          {/* Exchange Rate Info */}
+          {result?.exchange_rate && (
+            <div className="flex flex-col gap-1 py-4 px-4 mb-4 bg-white/5 rounded-lg border border-white/10">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-white/40 uppercase tracking-wider font-medium">Курс JPY/RUB</span>
+                <span className="text-sm font-bold text-white/90">{result.exchange_rate.toFixed(4)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-white/40 uppercase tracking-wider font-medium">Источник</span>
+                <span className="text-xs text-white/60">АТБ Банк</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-white/40 uppercase tracking-wider font-medium">Дата обновления</span>
+                <span className="text-xs text-white/60">{new Date().toLocaleDateString('ru-RU')}</span>
+              </div>
+            </div>
+          )}
+
           {/* Customs broker services */}
           <CostRow
             title="Услуги растаможивания и забора авто"
@@ -435,13 +451,6 @@ export const PriceCalculationModule: React.FC = () => {
                 ? ['Рассчитывается по коммерческой сетке', 'Зависит от объёма двигателя и возраста']
                 : ['Для личного авто', 'Льготная ставка отображается отдельно']
             }
-          />
-
-          {/* Transport to lab */}
-          <CostRow
-            title="Транспортировка авто в лабораторию"
-            amount={transportRub}
-            subItems={['СВХ, выгрузка, СБКТС, документы']}
           />
 
           {/* Total row */}

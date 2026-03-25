@@ -295,8 +295,16 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
         horsepower=context.horsepower,
     )
 
+    # Calculate Japan expenses based on engine volume (JPY)
+    # Scenario 1: Engine <= 2000cc -> 162,500 JPY
+    # Scenario 2: Engine > 2000cc -> 700,000 JPY
+    if context.engine_volume > 2000:
+        japan_expenses_jpy = Decimal("700000")
+    else:
+        japan_expenses_jpy = Decimal("162500")
+
     auction_rub = quantize_money(_as_decimal(context.price_jpy) * sell_rate)
-    japan_expenses_rub = quantize_money(JAPAN_EXPENSES_JPY * sell_rate)
+    japan_expenses_rub = quantize_money(japan_expenses_jpy * sell_rate)
     customs_duty_core_rub, customs_processing_fee_rub = calculate_customs_duty_rub(
         price_jpy=context.price_jpy,
         engine_volume=context.engine_volume,
@@ -332,7 +340,6 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
         + CUSTOMS_BROKER_RUB
         + customs_duty_rub
         + util_fee_rub
-        + SVH_TRANSPORT_RUB
     )
 
     return CalculationBreakdown(
@@ -343,7 +350,7 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
         customs_processing_fee_rub=customs_processing_fee_rub,
         excise_rub=excise_rub,
         util_fee_rub=util_fee_rub,
-        svh_transport_rub=SVH_TRANSPORT_RUB,
+        svh_transport_rub=ZERO,
         company_commission_rub=ZERO,
         duty_buffer_rub=duty_buffer_rub,
         total_rub=total_rub,

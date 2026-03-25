@@ -17,7 +17,6 @@ interface AuctionCar {
     buy_and_delivery_rub: number;
     customs_broker_rub: number;
     customs_duty_rub: number;
-    svh_transport_rub: number;
     company_commission: number;
   };
   total_rub: number;

@@ -278,13 +278,21 @@ def fetch_atb_jpy_rate() -> dict[str, float]:
             if buy is None or sell is None:
                 continue
 
-            normalized_buy = buy / denominator
-            normalized_sell = sell / denominator
+            if buy > 5.0:
+                normalized_buy = buy / 100.0
+                normalized_sell = sell / 100.0
+            else:
+                normalized_buy = buy
+                normalized_sell = sell
+            print(f"DEBUG: Found JPY candidate - Raw: Buy={buy}, Sell={sell} | Normalized: Buy={normalized_buy}, Sell={normalized_sell}")
             candidates.append((normalized_buy, normalized_sell))
 
         if candidates:
-            print(candidates)
-            buy, sell = candidates[0],
+            print(f"DEBUG: All JPY candidates: {candidates}")
+            # Просто берем первый найденный курс на странице, 
+            # обычно это тот, что в главной таблице
+            buy, sell = candidates[0]
+            print(f"DEBUG: Selected JPY rate (first candidate): Buy={buy}, Sell={sell}")
             _ATB_CACHE.update({"buy": buy, "sell": sell, "timestamp": current_time})
             return {"buy": buy, "sell": sell}
 

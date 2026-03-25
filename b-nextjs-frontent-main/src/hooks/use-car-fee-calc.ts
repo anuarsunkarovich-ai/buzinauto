@@ -22,7 +22,6 @@ type FastApiCalculationResponse = {
     customs_broker_rub?: number
     customs_duty_rub?: number
     util_fee_rub?: number
-    svh_transport_rub?: number
     company_commission?: number
     duty_buffer_rub?: number
   }
@@ -139,7 +138,6 @@ export const useCarFeeCalc = (car: any, usageType: UsageType = 'private') => {
           customs_broker_rub: apiData.breakdown?.customs_broker_rub || 0,
           customs_duty_rub: apiData.breakdown?.customs_duty_rub || 0,
           util_fee_rub: apiData.breakdown?.util_fee_rub || 0,
-          svh_transport_rub: apiData.breakdown?.svh_transport_rub || 0,
           company_commission: apiData.breakdown?.company_commission || 0,
           totalPriceRub: apiData.total_rub || 0,
         }
@@ -163,7 +161,6 @@ export const useCarFeeCalc = (car: any, usageType: UsageType = 'private') => {
     calculateClearanceFee: () => fees?.customs_broker_rub || 0,
     calculateCustomsDuty: () => fees?.customs_duty_rub || 0,
     calculateRecyclingFee: () => fees?.util_fee_rub || 0,
-    deliveryAmount: () => fees?.svh_transport_rub || 0,
   }
 }
 
@@ -181,7 +178,6 @@ type UseCarFeeFuncEnumResult = {
   calculateClearanceFee: () => number
   calculateCustomsDuty: () => number
   calculateRecyclingFee: () => number
-  deliveryAmount: () => number
 }
 
 export function useCarFeeFuncEnum(
@@ -254,8 +250,6 @@ export function useCarFeeFuncEnum(
           return Math.round(breakdown?.customs_duty_rub || 0)
         case 'RECYCLING_FEE':
           return Math.round(breakdown?.util_fee_rub || 0)
-        case 'DELIVERY_TO_CITY':
-          return Math.round(breakdown?.svh_transport_rub || 0)
         case 'COMMISSION_CNY':
         case 'COMMISSION':
           return Math.round(breakdown?.company_commission || 0)
@@ -276,10 +270,9 @@ export function useCarFeeFuncEnum(
     const broker = Math.round(breakdown?.customs_broker_rub || 0)
     const duty = Math.round(breakdown?.customs_duty_rub || 0)
     const util = Math.round(breakdown?.util_fee_rub || 0)
-    const svh = Math.round(breakdown?.svh_transport_rub || 0)
     const commission = Math.round(breakdown?.company_commission || 0)
 
-    return auction + delivery + broker + duty + util + svh + commission
+    return auction + delivery + broker + duty + util + commission
   }, [result, breakdown, exchangeRate, price])
 
   return {
@@ -287,11 +280,10 @@ export function useCarFeeFuncEnum(
     calculator,
     currencyPriceList,
     auctionPrice: () => Math.round(Number(price || 0) * exchangeRate),
-    deliveryPrice: () => Math.round(breakdown?.svh_transport_rub || 0),
+    deliveryPrice: () => 0,
     dutyPrice: () => Math.round(breakdown?.customs_duty_rub || 0),
     calculateClearanceFee: () => Math.round(breakdown?.customs_broker_rub || 0),
     calculateCustomsDuty: () => Math.round(breakdown?.customs_duty_rub || 0),
     calculateRecyclingFee: () => Math.round(breakdown?.util_fee_rub || 0),
-    deliveryAmount: () => Math.round(breakdown?.svh_transport_rub || 0),
   }
 }
