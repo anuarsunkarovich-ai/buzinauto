@@ -283,7 +283,8 @@ def fetch_atb_jpy_rate() -> dict[str, float]:
             candidates.append((normalized_buy, normalized_sell))
 
         if candidates:
-            buy, sell = max(candidates, key=lambda pair: pair[1])
+            print(candidates)
+            buy, sell = candidates[0],
             _ATB_CACHE.update({"buy": buy, "sell": sell, "timestamp": current_time})
             return {"buy": buy, "sell": sell}
 
