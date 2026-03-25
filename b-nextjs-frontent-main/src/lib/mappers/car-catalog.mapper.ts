@@ -39,7 +39,7 @@ export const mapperToCar = (car: CatalogCar): CarVisibleCardPropsTypes | null =>
     location: car?.auction || 'Japan',
     price: car.price.avg || car.price.final || car.price.start || 0,
     currency: car.price.currency || 'JPY',
-    rating: car.rating && /[[a-zA-Z\d]+/.test(car.rating) ? car.rating : undefined,
+    rating: car.rating || (car as any).grade,
     year: car.year || 2025,
     auctionDate: car.date,
     countryPath: CountryPathname.find((e) => e.country === car.saleCountry)?.pathname || '/japan',
@@ -58,7 +58,7 @@ export const mapperToCarDescription = (car: CatalogCar): CarDescriptionPropsType
   return {
     price: car.price.avg || car.price.final || car.price.start || 0,
     currency: car.price.currency || 'JPY',
-    rating: car.rating && /[[a-zA-Z\d]+/.test(car.rating) ? car.rating : undefined,
+    rating: car.rating || (car as any).grade,
     year: car.year || 2025,
     enginePower: car?.enginePower || 1000,
     engineType: car?.engineType || undefined,

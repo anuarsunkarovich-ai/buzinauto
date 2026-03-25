@@ -4,32 +4,29 @@ import { z } from 'zod'
 export const filterAutoSchema = z.object({
   model: z.string('Выберите модель автомобиля').optional(),
   make: z.string('Выберите марку автомобиля').optional(),
-  rating: z.string('Выберите рейтинг автомобиля').optional(),
+  minGrade: z.string().optional(),
+  maxGrade: z.string().optional(),
   auctionDate: z.string().optional(),
   minYear: z.coerce
     .number()
-    .optional()
-    .refine((e) => e === undefined || e >= 1900, 'Введите корректный год'),
+    .min(1900, 'Минимальный год 1900')
+    .max(new Date().getFullYear(), 'Максимальный год текущий')
+    .optional(),
   maxYear: z.coerce
     .number()
-    .optional()
-    .refine((e) => e === undefined || e >= 1900, 'Введите корректный год'),
-  minMileageKm: z.coerce
-    .number()
-    .optional()
-    .refine((e) => e === undefined || e >= 0, 'Введите корректный пробег'),
-  maxMileageKm: z.coerce
-    .number()
-    .optional()
-    .refine((e) => e === undefined || e >= 0, 'Введите корректный пробег'),
+    .min(1900, 'Минимальный год 1900')
+    .max(new Date().getFullYear(), 'Максимальный год текущий')
+    .optional(),
+  minMileageKm: z.coerce.number().min(0, 'Минимальный пробег 0').optional(),
+  maxMileageKm: z.coerce.number().min(0, 'Минимальный пробег 0').optional(),
   minEnginePower: z.coerce
     .number()
-    .optional()
-    .refine((e) => e === undefined || e >= 0, 'Введите корректный объём двигателя'),
+    .min(0, 'Минимальный объём двигателя 0')
+    .optional(),
   maxEnginePower: z.coerce
     .number()
-    .optional()
-    .refine((e) => e === undefined || e >= 0, 'Введите корректный объём двигателя'),
+    .min(0, 'Минимальный объём двигателя 0')
+    .optional(),
   body: z.string().optional(),
   minPrice: z.coerce
     .number()
@@ -39,5 +36,5 @@ export const filterAutoSchema = z.object({
     .number()
     .optional()
     .refine((e) => e === undefined || e >= 0, 'Введите корректную цену'),
-  saleCountry: z.enum(Object.values(Country), 'Выберите страну'),
+  saleCountry: z.enum(Object.values(Country) as [string, ...string[]]).optional(),
 })

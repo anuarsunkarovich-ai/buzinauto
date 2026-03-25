@@ -223,7 +223,8 @@ async def search_and_calculate(
     brand: str = "9",
     model: str = "718",
     auction_date: str | None = None,
-    rating: str | None = None,
+    min_grade: str | None = None,
+    max_grade: str | None = None,
     min_year: int | None = None,
     max_year: int | None = None,
     min_mileage_km: float | None = None,
@@ -246,7 +247,7 @@ async def search_and_calculate(
     if not model_matched:
         print("DEBUG: Model not matched; using brand-only scrape for broader results")
     brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
-    cars = await asyncio.to_thread(fetch_aleado_data, resolved_brand, resolved_model)
+    cars = await asyncio.to_thread(fetch_aleado_data, resolved_brand, resolved_model, search_type="max", body=str(body or ""))
 
     if auction_date:
         cars = [
@@ -254,12 +255,19 @@ async def search_and_calculate(
             for car in cars
             if str(car.get("auction_date", "")).startswith(auction_date)
         ]
-    if rating:
+    if min_grade:
         cars = [
             car
             for car in cars
-            if str(car.get("grade") or car.get("rating") or "").strip().lower()
-            == rating.strip().lower()
+            if str(car.get("grade") or car.get("rating") or "").strip().upper()
+            >= min_grade.strip().upper()
+        ]
+    if max_grade:
+        cars = [
+            car
+            for car in cars
+            if str(car.get("grade") or car.get("rating") or "").strip().upper()
+            <= max_grade.strip().upper()
         ]
     if min_year is not None:
         cars = [car for car in cars if _safe_number(car.get("year")) >= min_year]
@@ -466,13 +474,14 @@ async def auction_stats(
     max_mileage_km: int = Query(None),
     min_year: int = Query(None),
     max_year: int = Query(None),
-    rating: str = Query(None),
+    min_grade: str = Query(None),
+    max_grade: str = Query(None),
 ) -> AuctionStatsResponse:
     """Return aggregated market statistics for a brand/model combination.
     Results are cached in memory for 1 hour to incorporate current filters.
     """
     # ── Create unique cache key for current filter set ────────────────────────
-    filters_str = f"mil_{min_mileage_km}-{max_mileage_km}yr_{min_year}-{max_year}rtg_{rating}_body_{body}"
+    filters_str = f"mil_{min_mileage_km}-{max_mileage_km}yr_{min_year}-{max_year}grade_{min_grade}-{max_grade}_body_{body}"
     cache_key = f"{brand}::{model}::{filters_str}"
     
     cached = _STATS_CACHE.get(cache_key)
@@ -489,7 +498,7 @@ async def auction_stats(
     rates = fetch_atb_jpy_rate()
     sell_rate = rates["sell"]
 
-    cars = await asyncio.to_thread(fetch_aleado_data, resolved_brand, resolved_model)
+    cars = await asyncio.to_thread(fetch_aleado_data, resolved_brand, resolved_model, search_type="stats", body=str(body or ""))
 
     # ── Apply Filtering ───────────────────────────────────────────────────────
     def _to_int_price(v) -> int:
@@ -506,8 +515,20 @@ async def auction_stats(
         cars = [c for c in cars if _safe_number(c.get("year")) >= min_year]
     if max_year is not None:
         cars = [c for c in cars if _safe_number(c.get("year")) <= max_year]
-    if rating:
-        cars = [c for c in cars if str(c.get("grade") or c.get("rating", "")).strip().upper() == rating.strip().upper()]
+    if min_grade:
+        cars = [
+            car
+            for car in cars
+            if str(car.get("grade") or car.get("rating") or "").strip().upper()
+            >= min_grade.strip().upper()
+        ]
+    if max_grade:
+        cars = [
+            car
+            for car in cars
+            if str(car.get("grade") or car.get("rating") or "").strip().upper()
+            <= max_grade.strip().upper()
+        ]
     if body:
         norm_body = _normalize_token(body)
         cars = [c for c in cars if _normalize_token(str(c.get("body") or "")) == norm_body]

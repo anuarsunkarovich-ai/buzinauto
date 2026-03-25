@@ -7,8 +7,11 @@ import { isMongoId } from '../utils'
 export type CatalogCarPromiseFilter = {
   model: string
   brand: string
+  minGrade?: string
+  maxGrade?: string
   rating?: string
   currency?: string
+  body?: string
   brands?: string[]
   minMilage?: number
   maxMilage?: number
@@ -197,11 +200,38 @@ export const getManyCatalogCarPromise = async (
       })
     }
 
-    if (typeof filter === 'object' && 'rating' in filter && filter.rating) {
+    if (typeof filter === 'object' && 'body' in filter && filter.body) {
       and.push({
-        rating: {
-          equals: filter.rating,
+        body: {
+          equals: filter.body,
         },
+      })
+    }
+
+    if (filter?.rating) {
+      and.push({
+        or: [
+          { rating: { equals: filter.rating } },
+          { grade: { equals: filter.rating } },
+        ],
+      })
+    }
+
+    if (filter?.minGrade) {
+      and.push({
+        or: [
+          { rating: { greater_than_equal: filter.minGrade } },
+          { grade: { greater_than_equal: filter.minGrade } },
+        ],
+      })
+    }
+
+    if (filter?.maxGrade) {
+      and.push({
+        or: [
+          { rating: { less_than_equal: filter.maxGrade } },
+          { grade: { less_than_equal: filter.maxGrade } },
+        ],
       })
     }
 

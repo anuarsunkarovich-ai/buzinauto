@@ -933,18 +933,21 @@ def fetch_aleado_average_price(detail_link: str) -> int:
     return int(fetch_aleado_lot_details(detail_link).get("average_price_jpy") or 0)
 
 
-def fetch_aleado_data(brand: str, model: str) -> list[dict[str, Any]]:
-    try:
-        params: dict[str, Any] = {
-            "p": "project/findlots",
-            "searchtype": "max",
-            "s": "",
-            "ld": "",
-            "mrk": brand,
-        }
-        if model and str(model) not in {"", "-1"}:
-            params["mdl[]"] = model
+def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max", body: str = "") -> list[dict[str, Any]]:
+    """Fetch car lots from Aleado based on search type (live/stats) and body code."""
+    params = {
+        "p": "project/findlots",
+        "searchtype": search_type,
+        "mrk": brand_id,
+        "s": "",
+        "ld": "",
+    }
+    if model_id and model_id != "-1":
+        params["mdl[]"] = model_id
+    if body:
+        params["body"] = body
 
+    try:
         response = _fetch_aleado_page("/auctions/", params=params)
         soup = BeautifulSoup(response.text, "html.parser")
 

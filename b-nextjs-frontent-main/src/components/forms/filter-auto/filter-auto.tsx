@@ -73,7 +73,8 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
       minPrice: defaultValues?.minPrice ? parseInt(defaultValues.minPrice) : undefined,
       maxPrice: defaultValues?.maxPrice ? parseInt(defaultValues.maxPrice) : undefined,
       auctionDate: defaultValues?.auctionDate,
-      rating: defaultValues?.rating,
+      minGrade: defaultValues?.minGrade,
+      maxGrade: defaultValues?.maxGrade,
       saleCountry:
         (defaultValues?.saleCountry as Country) ||
         CountryPathname.find((e) => pathname.includes(e.pathname))?.country ||
@@ -253,8 +254,11 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
       const currency = country?.country === Country.JAPAN ? 'JPY' : 'CNY'
 
       const query = new URLSearchParams()
-      if (values.rating) {
-        query.set('rating', values.rating)
+      if (values.minGrade) {
+        query.set('minGrade', values.minGrade)
+      }
+      if (values.maxGrade) {
+        query.set('maxGrade', values.maxGrade)
       }
       if (values.maxMileageKm) {
         query.set('maxMileageKm', values.maxMileageKm.toString())
@@ -451,7 +455,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
         />
         <FormField
           control={form.control}
-          name="rating"
+          name="minGrade"
           render={({ field }) => (
             <FormItem
               className={`
@@ -459,15 +463,45 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
                 md:col-span-1
               `}
             >
-              <FormLabel>Рейтинг</FormLabel>
+              <FormLabel>Оценка от</FormLabel>
               <FormControl className="mb-0">
                 <Combobox
                   className="select-none"
                   options={Ratings}
                   valueKey="value"
                   labelKey="label"
-                  placeholder={'Рейтинг...'}
-                  searchPlaceholder="Найти рейтинг..."
+                  placeholder={'Оценка от...'}
+                  searchPlaceholder="Найти оценку..."
+                  emptyMessage={'Упс... Ничего не найдено'}
+                  onChange={(value) => {
+                    field.onChange(value)
+                  }}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="maxGrade"
+          render={({ field }) => (
+            <FormItem
+              className={`
+                col-span-2
+                md:col-span-1
+              `}
+            >
+              <FormLabel>Оценка до</FormLabel>
+              <FormControl className="mb-0">
+                <Combobox
+                  className="select-none"
+                  options={Ratings}
+                  valueKey="value"
+                  labelKey="label"
+                  placeholder={'Оценка до...'}
+                  searchPlaceholder="Найти оценку..."
                   emptyMessage={'Упс... Ничего не найдено'}
                   onChange={(value) => {
                     field.onChange(value)

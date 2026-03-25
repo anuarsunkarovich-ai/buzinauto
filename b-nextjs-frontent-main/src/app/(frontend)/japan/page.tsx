@@ -47,11 +47,13 @@ export default async function HomePage({
       typeof params['maxEnginePower'] === 'string' ? parseInt(params['maxEnginePower']) : undefined,
     minPrice: typeof params['minPrice'] === 'string' ? parseInt(params['minPrice']) : undefined,
     maxPrice: typeof params['maxPrice'] === 'string' ? parseInt(params['maxPrice']) : undefined,
-    rating: params['rating'] as string | undefined,
+    minGrade: params['minGrade'] as string | undefined,
+    maxGrade: params['maxGrade'] as string | undefined,
     maxMilage:
       typeof params['maxMileageKm'] === 'string' ? parseInt(params['maxMileageKm']) : undefined,
     minMilage:
       typeof params['minMileageKm'] === 'string' ? parseInt(params['minMileageKm']) : undefined,
+    body: params['body'] as string | undefined,
   })
 
   const items = docs.map((car) => mapperToCar(car)).filter((e) => !!e)
@@ -78,11 +80,13 @@ export default async function HomePage({
               typeof params['maxEnginePower'] === 'string' ? params['maxEnginePower'] : undefined,
             minPrice: typeof params['minPrice'] === 'string' ? params['minPrice'] : undefined,
             maxPrice: typeof params['maxPrice'] === 'string' ? params['maxPrice'] : undefined,
-            rating: params['rating'] as string | undefined,
+            minGrade: params['minGrade'] as string | undefined,
+            maxGrade: params['maxGrade'] as string | undefined,
             maxMileageKm:
               typeof params['maxMileageKm'] === 'string' ? params['maxMileageKm'] : undefined,
             minMileageKm:
               typeof params['minMileageKm'] === 'string' ? params['minMileageKm'] : undefined,
+            body: params['body'] as string | undefined,
           }}
         />
         <PayloadPaginationAuto path="/japan/cars" {...pagination} />
