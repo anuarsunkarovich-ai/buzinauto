@@ -125,6 +125,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
   const [cars, setCars] = React.useState<CarVisibleCardPropsTypes[]>(initialItems)
   const [loading, setLoading] = React.useState(false)
   const [hasSubmittedSearch, setHasSubmittedSearch] = React.useState(false)
+  const [exchangeRate, setExchangeRate] = React.useState<{ rate: number; source: string } | null>(null)
 
   React.useEffect(() => {
     setCars(initialItems)
@@ -139,6 +140,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
         const response = await searchCars({
           brand: String(values.make || defaultValues?.make || '9'),
           model: values.model ? String(values.model) : undefined,
+          body: values.body ? String(values.body) : undefined,
           auctionDate: values.auctionDate ? String(values.auctionDate) : undefined,
           minGrade: values.minGrade ? String(values.minGrade) : undefined,
           maxGrade: values.maxGrade ? String(values.maxGrade) : undefined,
@@ -155,6 +157,12 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
         })
 
         setCars(response.results.map((car, index) => mapFastApiCarToVisibleCard(car, index)))
+        if (response.exchange_rate) {
+          setExchangeRate({
+            rate: response.exchange_rate,
+            source: response.rate_source || 'ATB Bank',
+          })
+        }
       } finally {
         setLoading(false)
       }
@@ -165,11 +173,21 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
   return (
     <div className="flex flex-col space-y-6">
       <FilterAuto defaultValues={defaultValues} onSearch={handleSearch} />
-      {loading && (
-        <Text as="small" className="text-muted-foreground">
-          Загрузка...
-        </Text>
-      )}
+      
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {exchangeRate && (
+          <Text as="small" className="text-muted-foreground bg-secondary/10 px-3 py-1.5 rounded-lg border border-border/50">
+            Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> ({exchangeRate.source})
+          </Text>
+        )}
+        
+        {loading && (
+          <Text as="small" className="text-muted-foreground animate-pulse">
+            Загрузка свежих лотов...
+          </Text>
+        )}
+      </div>
+
       {!loading && hasSubmittedSearch && cars.length === 0 && (
         <Text as="small" className="text-muted-foreground">
           No live lots match the current filters. Try broadening the filters or choosing another model.

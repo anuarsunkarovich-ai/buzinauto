@@ -3,6 +3,7 @@ import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
 export type SearchCarsParams = {
   brand: string
   model?: string
+  body?: string
   auctionDate?: string
   minGrade?: string
   maxGrade?: string
@@ -102,6 +103,7 @@ const buildSearchUrl = (
   {
     brand,
     model,
+    body,
     auctionDate,
     minGrade,
     maxGrade,
@@ -121,6 +123,9 @@ const buildSearchUrl = (
   url.searchParams.set('brand', brand)
   if (model) {
     url.searchParams.set('model', model)
+  }
+  if (body) {
+    url.searchParams.set('body', body)
   }
   if (limit) {
     url.searchParams.set('limit', String(limit))
@@ -183,6 +188,7 @@ const fetchSearchResults = async (url: URL) => {
 export const searchCars = async ({
   brand,
   model,
+  body,
   auctionDate,
   minGrade,
   maxGrade,
@@ -196,17 +202,18 @@ export const searchCars = async ({
   minPrice,
   maxPrice,
   limit,
-}: SearchCarsParams): Promise<{ results: FastApiSearchCar[] }> => {
+}: SearchCarsParams): Promise<{ results: FastApiSearchCar[]; exchange_rate?: number; rate_source?: string }> => {
   const baseUrl = getRuntimeBackendApiUrl()
 
   if (!baseUrl) {
     throw new Error('Backend API URL is not configured')
   }
 
-  const primaryResults = await fetchSearchResults(
+  const response = await fetch(
     buildSearchUrl(baseUrl, {
       brand,
       model,
+      body,
       auctionDate,
       minGrade,
       maxGrade,
@@ -220,32 +227,22 @@ export const searchCars = async ({
       minPrice,
       maxPrice,
       limit,
-    }),
+    }).toString(),
+    {
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+      },
+    },
   )
 
-  if (primaryResults.length > 0 || !model) {
-    return { results: primaryResults }
+  if (!response.ok) {
+    throw new Error(`FastAPI search failed with status ${response.status}`)
   }
 
-  const fallbackResults = await fetchSearchResults(
-    buildSearchUrl(baseUrl, {
-      brand,
-      auctionDate,
-      minGrade,
-      maxGrade,
-      rating,
-      minYear,
-      maxYear,
-      minMileageKm,
-      maxMileageKm,
-      minEnginePower,
-      maxEnginePower,
-      minPrice,
-      maxPrice,
-    }),
-  )
-
+  const data = await response.json()
   return {
-    results: fallbackResults.filter((car) => matchesModelQuery(car, model)),
+    results: data.results || [],
+    exchange_rate: data.exchange_rate,
+    rate_source: data.rate_source,
   }
 }

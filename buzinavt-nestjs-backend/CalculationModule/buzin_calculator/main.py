@@ -223,6 +223,7 @@ async def search_and_calculate(
     brand: str = "9",
     model: str = "718",
     auction_date: str | None = None,
+    body: str | None = None,
     min_grade: str | None = None,
     max_grade: str | None = None,
     min_year: int | None = None,
@@ -392,7 +393,12 @@ async def search_and_calculate(
         enriched = [
             car for car in enriched if float(car.get("total_rub") or 0) <= max_price_rub
         ]
-    return {"status": "success", "results": enriched}
+    return {
+        "status": "success",
+        "results": enriched,
+        "exchange_rate": sell_rate,
+        "rate_source": "ATB Bank",
+    }
 
 
 @app.get("/api/v1/auction/filters")
