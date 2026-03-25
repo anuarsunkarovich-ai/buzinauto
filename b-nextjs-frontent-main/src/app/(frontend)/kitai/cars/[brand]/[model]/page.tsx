@@ -58,7 +58,8 @@ export default async function ChinaCarsPage({ params: paramsPromise, searchParam
       typeof params['maxEnginePower'] === 'string' ? parseInt(params['maxEnginePower']) : undefined,
     minPrice: typeof params['minPrice'] === 'string' ? parseInt(params['minPrice']) : undefined,
     maxPrice: typeof params['maxPrice'] === 'string' ? parseInt(params['maxPrice']) : undefined,
-    rating: params['rating'] as string | undefined,
+    minGrade: params['minGrade'] as string | undefined,
+    maxGrade: params['maxGrade'] as string | undefined,
     maxMilage:
       typeof params['maxMileageKm'] === 'string' ? parseInt(params['maxMileageKm']) : undefined,
     minMilage:
@@ -103,7 +104,8 @@ export default async function ChinaCarsPage({ params: paramsPromise, searchParam
               typeof params['maxEnginePower'] === 'string' ? params['maxEnginePower'] : undefined,
             minPrice: typeof params['minPrice'] === 'string' ? params['minPrice'] : undefined,
             maxPrice: typeof params['maxPrice'] === 'string' ? params['maxPrice'] : undefined,
-            rating: params['rating'] as string | undefined,
+            minGrade: params['minGrade'] as string | undefined,
+            maxGrade: params['maxGrade'] as string | undefined,
             maxMileageKm:
               typeof params['maxMileageKm'] === 'string' ? params['maxMileageKm'] : undefined,
             minMileageKm:
