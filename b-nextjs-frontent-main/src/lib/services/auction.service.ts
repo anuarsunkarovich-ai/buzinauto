@@ -4,6 +4,8 @@ export type SearchCarsParams = {
   brand: string
   model?: string
   auctionDate?: string
+  minGrade?: string
+  maxGrade?: string
   rating?: string
   minYear?: number
   maxYear?: number
@@ -101,6 +103,8 @@ const buildSearchUrl = (
     brand,
     model,
     auctionDate,
+    minGrade,
+    maxGrade,
     rating,
     minYear,
     maxYear,
@@ -123,6 +127,12 @@ const buildSearchUrl = (
   }
   if (auctionDate) {
     url.searchParams.set('auction_date', auctionDate)
+  }
+  if (minGrade) {
+    url.searchParams.set('min_grade', minGrade)
+  }
+  if (maxGrade) {
+    url.searchParams.set('max_grade', maxGrade)
   }
   if (rating) {
     url.searchParams.set('rating', rating)
@@ -174,6 +184,8 @@ export const searchCars = async ({
   brand,
   model,
   auctionDate,
+  minGrade,
+  maxGrade,
   rating,
   minYear,
   maxYear,
@@ -196,6 +208,8 @@ export const searchCars = async ({
       brand,
       model,
       auctionDate,
+      minGrade,
+      maxGrade,
       rating,
       minYear,
       maxYear,
@@ -217,6 +231,8 @@ export const searchCars = async ({
     buildSearchUrl(baseUrl, {
       brand,
       auctionDate,
+      minGrade,
+      maxGrade,
       rating,
       minYear,
       maxYear,
