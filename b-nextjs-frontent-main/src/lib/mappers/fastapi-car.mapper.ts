@@ -1,6 +1,16 @@
 import { FastApiSearchCar } from '@/lib/services/auction.service'
-import { CarVisibleCardPropsTypes } from '@/types/car-visible-card.types'
-import { buildImages } from '@/lib/utils/build-images'
+import { CarVisibleCardPropsTypes } from '@/components/features/car-carousel/car-visible-card'
+
+const buildImages = (car: FastApiSearchCar, fallbackAlt: string) => {
+  const sources = car.image_urls?.length ? car.image_urls : [car.image_url || '/static/img/loading72.gif']
+
+  return sources
+    .filter(Boolean)
+    .map((src, index) => ({
+      src,
+      alt: index === 0 ? fallbackAlt : `${fallbackAlt} ${index + 1}`,
+    }))
+}
 
 export const mapFastApiCarToVisibleCard = (
   car: FastApiSearchCar,
@@ -16,12 +26,13 @@ export const mapFastApiCarToVisibleCard = (
   const initialTotalRub = Number(car.total_rub) || 0
 
   return {
+    title: `${brand} ${model}`,
     id: `${car.lot}-${index}`,
-    slug: car.modelSlug || car.model_code || model.toLowerCase().replace(/\s+/g, '-'),
-    path: `/japan/cars/${brand.toLowerCase()}/${car.modelSlug || car.model_code || ''}`,
-    brand: car.brand || 'Japan',
-    model: car.modelDisplay || car.model || car.model_code || 'Model',
-    modification: [
+    modelSlug: car.modelSlug || car.model_code || model.toLowerCase().replace(/\s+/g, '-'),
+    brandSlug: brand.toLowerCase(),
+    countryPath: '/japan',
+    description: `${year} ${enginePower}cc ${car.transmission || ''}`.trim(),
+    tags: [
       car.model_code,
       car.body,
       car.color,
@@ -34,9 +45,10 @@ export const mapFastApiCarToVisibleCard = (
     year,
     horsepower: Number(car.horsepower || 0),
     enginePower,
-    engineType: 'gasoline',
+    engineType: 'gasoline' as const,
     location: [car.auction_name, car.auction].filter(Boolean).join(' ') || 'Japan',
     auctionDate: car.auction_date,
+    lot: car.lot,
     rating: car.rating || undefined,
     initialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
     initialCommercialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,

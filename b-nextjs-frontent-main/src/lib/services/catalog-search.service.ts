@@ -1,6 +1,6 @@
 import { searchCars } from './auction.service'
 import { mapFastApiCarToVisibleCard } from '../mappers/fastapi-car.mapper'
-import { CarVisibleCardPropsTypes } from '@/types/car-visible-card.types'
+import { CarVisibleCardPropsTypes } from '@/components/features/car-carousel/car-visible-card'
 
 interface CatalogSearchParams {
   brand?: string
@@ -22,7 +22,7 @@ export const searchCatalogCars = async (
   params: CatalogSearchParams
 ): Promise<{ items: CarVisibleCardPropsTypes[]; exchangeRate?: { rate: number; source: string } }> => {
   const response = await searchCars({
-    brand: params.brand,
+    brand: params.brand || '9',
     model: params.model,
     body: params.body,
     minYear: params.minYear,
