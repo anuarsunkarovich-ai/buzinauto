@@ -53,6 +53,10 @@ def _normalize_token(value: str) -> str:
 
 
 def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
+    # Sanitize input immediately
+    brand = str(brand or "").strip().strip('"').strip("'")
+    model = str(model or "").strip().strip('"').strip("'")
+    
     brand_id = brand
     model_id = model
     model_matched = False
@@ -63,25 +67,25 @@ def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
             (
                 item
                 for item in brands
-                if _normalize_token(item.get("id", "")) == _normalize_token(brand)
-                or _normalize_token(item.get("name", "")) == _normalize_token(brand)
+                if _normalize_token(str(item.get("id", ""))) == _normalize_token(brand)
+                or _normalize_token(str(item.get("name", ""))) == _normalize_token(brand)
             ),
             None,
         )
         if brand_match:
-            brand_id = brand_match["id"]
+            brand_id = str(brand_match["id"]).strip().strip('"').strip("'")
 
         models = fetch_aleado_filters(brand_id)
         normalized_model = _normalize_token(model)
         model_match = None
         for item in models:
-            item_id = str(item.get("id", ""))
-            if item_id in {"", "-1"}:
+            item_raw_id = str(item.get("id", "")).strip().strip('"').strip("'")
+            if item_raw_id in {"", "-1"}:
                 continue
 
-            item_name = _normalize_token(item.get("name", ""))
-            item_display = _normalize_token(item.get("modelDisplay", ""))
-            item_id_norm = _normalize_token(item_id)
+            item_name = _normalize_token(str(item.get("name", "")))
+            item_display = _normalize_token(str(item.get("modelDisplay", "")))
+            item_id_norm = _normalize_token(item_raw_id)
 
             if (
                 item_id_norm == _normalize_token(model)
@@ -94,10 +98,10 @@ def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
                 break
 
         if model_match:
-            model_id = model_match["id"]
+            model_id = str(model_match["id"]).strip().strip('"').strip("'")
             model_matched = True
         elif models:
-            print("DEBUG: No exact model match found, using brand-level search instead")
+            print(f"DEBUG: No exact model match for '{model}', setting model_id to empty")
             model_id = ""
     except Exception as exc:
         print(f"DEBUG: Aleado ID resolution failed: {exc}")

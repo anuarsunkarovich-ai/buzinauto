@@ -1054,38 +1054,64 @@ def fetch_aleado_average_price(detail_link: str) -> int:
 
 def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max", body: str = "") -> list[dict[str, Any]]:
     """Fetch car lots from Aleado based on search type (live/stats) and body code."""
-    params = {
-        "p": "project/findlots",
-        "searchtype": search_type,
-        "mrk": brand_id,
-        "s": "",
-        "ld": "",
-    }
+    brand_id = str(brand_id or "").strip().strip('"').strip("'")
+    model_id = str(model_id or "").strip().strip('"').strip("'")
+    body = str(body or "").strip().strip('"').strip("'")
+    
+    # Base params as a list of tuples to handle flag-only params like s and ld correctly
+    params = [
+        ("p", "project/findlots"),
+        ("searchtype", search_type),
+        ("mrk", brand_id),
+        ("s", None), # Flag style (no value)
+        ("ld", None), # Flag style (no value)
+    ]
     if model_id and model_id != "-1":
-        params["mdl[]"] = model_id
+        params.append(("mdl[]", model_id))
     if body:
-        params["body"] = body
+        params.append(("body", body))
 
     try:
         path = "/stats/" if search_type == "stats" else "/auctions/"
         response = _fetch_aleado_page(path, params=params)
+        
+        # Check for login redirection
+        if "Вход" in response.text and "username" in response.text:
+            print("DEBUG: Aleado search failed - redirected to login. Re-authenticating...")
+            with _aleado_session_context() as client:
+                _login_aleado(client)
+                response = client.get(_absolute_aleado_url(path), params=params)
+
         soup = BeautifulSoup(response.text, "html.parser")
 
         cars: list[dict[str, Any]] = []
-        for row in soup.find_all("tr", id=re.compile(r"^cell_\d+$")):
+        # Find all rows that look like lot data. They usually have 'cell_NNN' ID or 'row' class.
+        rows = soup.find_all("tr", id=re.compile(r"^cell_\d+$"))
+        if not rows:
+            # Fallback for different search formats
+            rows = soup.find_all("tr", class_=re.compile(r"row\s*\d+", re.IGNORECASE))
+        
+        if not rows:
+            # Check if we got an empty result message or an error
+            res_list = soup.find(id="list-lots")
+            if res_list:
+                rows = res_list.find_all("tr")[1:] # Skip header
+
+        for row in rows:
             cols = [td.get_text(" ", strip=True) for td in row.find_all("td")]
-            if len(cols) < 16:
+            if len(cols) < 10: # Minimum columns to be a valid lot
                 continue
 
+            # Identify lot number - usually in 2nd column
             lot = cols[1] if len(cols) > 1 else ""
-            if not re.search(r"\d", lot):
+            if not any(c.isdigit() for c in lot):
                 continue
 
             auction_name = cols[2] if len(cols) > 2 else ""
             brand_name = cols[4] if len(cols) > 4 else ""
             model_name = cols[5] if len(cols) > 5 else ""
             model_code = cols[6] if len(cols) > 6 else ""
-            body = cols[7] if len(cols) > 7 else ""
+            body_val = cols[7] if len(cols) > 7 else ""
             year = cols[8] if len(cols) > 8 else ""
             engine_cc = _extract_first_number(cols[9]) if len(cols) > 9 else 0
             transmission = cols[10] if len(cols) > 10 else ""
@@ -1105,9 +1131,9 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
             link_tag = row.find("a", href=True)
             detail_link = _absolute_aleado_url(link_tag.get("href", "")) if link_tag else ""
 
-            modification = " ".join(part for part in [model_code, body] if part).strip()
+            modification = " ".join(part for part in [model_code, body_val] if part).strip()
             model_display = " ".join(
-                part for part in [brand_name, model_name, model_code, body] if part
+                part for part in [brand_name, model_name, model_code, body_val] if part
             ).strip()
 
             cars.append(
@@ -1125,7 +1151,7 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
                     "model": model_name,
                     "modelDisplay": model_display,
                     "modelSlug": _normalize(model_name) or _normalize(model_code),
-                    "body": body,
+                    "body": body_val,
                     "modification": modification,
                     "rating": grade,
                     "model_code": model_code,
