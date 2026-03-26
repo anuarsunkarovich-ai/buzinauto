@@ -33,6 +33,8 @@ FILTER_CACHE_TTL_SECONDS = 30 * 60
 AVERAGE_PRICE_CACHE_TTL_SECONDS = 30 * 60
 LOT_DETAILS_CACHE_TTL_SECONDS = 24 * 3600  # Increase to 24h
 MODIFICATIONS_CACHE_TTL_SECONDS = 24 * 3600
+ALEADO_RESULTS_PAGE_SIZE = 100
+ALEADO_MAX_RESULT_PAGES = 5
 
 ALEADO_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -705,12 +707,20 @@ def _parse_price_jpy(soup: BeautifulSoup, row, cols: list[str] | None = None) ->
     return _parse_thousand_yen_price(raw_price)
 
 
-def _build_stats_search_payload(brand_id: str, model_id: str = "") -> dict[str, str]:
+def _build_stats_search_payload(
+    brand_id: str,
+    model_id: str = "",
+    *,
+    page: int = 1,
+    page_size: int = ALEADO_RESULTS_PAGE_SIZE,
+) -> dict[str, str]:
     today = datetime.utcnow() + timedelta(hours=9)
     start_date = today - timedelta(days=90)
     payload = {
         "p": "project/findlots",
         "result": "0",
+        "vs": str(page_size),
+        "pg": str(max(1, page)),
         "mrk": brand_id,
         "sday": start_date.strftime("%d"),
         "smonth": start_date.strftime("%m"),
@@ -728,6 +738,18 @@ def _build_stats_search_payload(brand_id: str, model_id: str = "") -> dict[str, 
     if model_id and model_id != "-1":
         payload["mdl"] = model_id
     return payload
+
+
+def _extract_total_result_rows(soup: BeautifulSoup) -> int:
+    rows_input = soup.find("input", attrs={"name": "rows"})
+    if rows_input:
+        return _extract_first_number(str(rows_input.get("value") or ""))
+
+    text = soup.get_text(" ", strip=True)
+    match = re.search(r"Всего найдено лотов:\s*([0-9 ]+)", text, re.IGNORECASE)
+    if match:
+        return _extract_first_number(match.group(1))
+    return 0
 
 
 def _extract_average_price_args(page_html: str) -> list[str]:
@@ -1215,7 +1237,15 @@ def fetch_aleado_average_price(detail_link: str) -> int:
     return int(fetch_aleado_lot_details(detail_link).get("average_price_jpy") or 0)
 
 
-def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max", body: str = "") -> list[dict[str, Any]]:
+def _fetch_aleado_data_single_page(
+    brand_id: str,
+    model_id: str = "",
+    search_type: str = "max",
+    body: str = "",
+    *,
+    page: int = 1,
+    page_size: int = ALEADO_RESULTS_PAGE_SIZE,
+) -> list[dict[str, Any]]:
     """Fetch car lots from Aleado based on search type (live/stats) and body code."""
     def clean_id(s: str) -> str:
         if not s: return ""
@@ -1232,13 +1262,18 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
         ("mrk", brand_id),
         ("s", None), # Flag style (no value)
         ("ld", None), # Flag style (no value)
+        ("vs", str(page_size)),
+        ("pg", str(max(1, page))),
     ]
     if model_id and model_id != "-1":
         params.append(("mdl[]", model_id))
     if body and search_type != "stats":
         params.append(("body", body))
 
-    print(f"DEBUG: Scraper calling Aleado path={search_type} with params={params}")
+    print(
+        f"DEBUG: Scraper calling Aleado path={search_type} page={page} "
+        f"page_size={page_size} params={params}"
+    )
 
     try:
         path = "/stats/" if search_type == "stats" else "/auctions/"
@@ -1247,7 +1282,12 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
             path = "/stats/?p=project/findlots&s&ld"
             request_kwargs = {
                 "method": "POST",
-                "data": _build_stats_search_payload(brand_id, model_id),
+                "data": _build_stats_search_payload(
+                    brand_id,
+                    model_id,
+                    page=page,
+                    page_size=page_size,
+                ),
             }
 
         response = _fetch_aleado_page(path, **request_kwargs)
@@ -1257,7 +1297,18 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
             print("DEBUG: Aleado search failed - redirected to login. Re-authenticating...")
             with _aleado_session_context() as client:
                 _login_aleado(client)
-                response = client.get(_absolute_aleado_url(path), params=params)
+                if search_type == "stats":
+                    response = client.post(
+                        _absolute_aleado_url(path),
+                        data=_build_stats_search_payload(
+                            brand_id,
+                            model_id,
+                            page=page,
+                            page_size=page_size,
+                        ),
+                    )
+                else:
+                    response = client.get(_absolute_aleado_url(path), params=params)
 
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -1360,3 +1411,87 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
     except Exception as exc:
         print(f"DEBUG: Aleado scrape failed: {exc}")
         return []
+
+
+def fetch_aleado_data(
+    brand_id: str,
+    model_id: str = "",
+    search_type: str = "max",
+    body: str = "",
+) -> list[dict[str, Any]]:
+    first_page_rows = _fetch_aleado_data_single_page(
+        brand_id,
+        model_id,
+        search_type=search_type,
+        body=body,
+        page=1,
+        page_size=ALEADO_RESULTS_PAGE_SIZE,
+    )
+
+    try:
+        if search_type == "stats":
+            response = _fetch_aleado_page(
+                "/stats/?p=project/findlots&s&ld",
+                method="POST",
+                data=_build_stats_search_payload(
+                    str(brand_id or ""),
+                    str(model_id or ""),
+                    page=1,
+                    page_size=ALEADO_RESULTS_PAGE_SIZE,
+                ),
+            )
+        else:
+            params: list[tuple[str, Any]] = [
+                ("p", "project/findlots"),
+                ("searchtype", search_type),
+                ("mrk", str(brand_id or "")),
+                ("s", None),
+                ("ld", None),
+                ("vs", str(ALEADO_RESULTS_PAGE_SIZE)),
+                ("pg", "1"),
+            ]
+            if model_id and model_id != "-1":
+                params.append(("mdl[]", str(model_id)))
+            response = _fetch_aleado_page("/auctions/", params=params)
+
+        total_rows = _extract_total_result_rows(BeautifulSoup(response.text, "html.parser"))
+    except Exception as exc:
+        print(f"DEBUG: Aleado total rows detection failed: {exc}")
+        total_rows = len(first_page_rows)
+
+    page_count = max(
+        1,
+        min(
+            ALEADO_MAX_RESULT_PAGES,
+            (total_rows + ALEADO_RESULTS_PAGE_SIZE - 1) // ALEADO_RESULTS_PAGE_SIZE
+            if total_rows > 0
+            else 1,
+        ),
+    )
+
+    cars_by_key: dict[str, dict[str, Any]] = {}
+    for car in first_page_rows:
+        car_key = str(car.get("lot") or "") or str(car.get("detail_link") or "")
+        if car_key:
+            cars_by_key[car_key] = car
+
+    for page in range(2, page_count + 1):
+        page_rows = _fetch_aleado_data_single_page(
+            brand_id,
+            model_id,
+            search_type=search_type,
+            body=body,
+            page=page,
+            page_size=ALEADO_RESULTS_PAGE_SIZE,
+        )
+        for car in page_rows:
+            car_key = str(car.get("lot") or "") or str(car.get("detail_link") or "")
+            if car_key:
+                cars_by_key[car_key] = car
+
+    cars = list(cars_by_key.values())
+    print(
+        f"DEBUG: Aggregated {len(cars)} Aleado rows across {page_count} page(s) "
+        f"(reported total rows: {total_rows})"
+    )
+    return cars

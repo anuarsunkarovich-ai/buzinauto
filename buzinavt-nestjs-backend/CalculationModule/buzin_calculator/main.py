@@ -99,6 +99,9 @@ def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
         if brand_match:
             brand_id = clean_id(str(brand_match["id"]))
 
+        if not model:
+            return brand_id, "", False
+
         models = fetch_aleado_filters(brand_id)
         normalized_model = _normalize_token(model)
         model_match = None
