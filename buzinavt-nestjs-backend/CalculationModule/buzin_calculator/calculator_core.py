@@ -286,6 +286,7 @@ def calculate_recycling_fee_rub(
 
 def calculate_total(context: CalculationContext) -> CalculationBreakdown:
     sell_rate = _as_decimal(context.sell_rate)
+    buy_rate = _as_decimal(context.buy_rate)
     eur_rate = _as_decimal(context.eur_rate)
     duty_buffer_rub = _as_decimal(max(0.0, float(context.duty_buffer_rub or 0)))
 

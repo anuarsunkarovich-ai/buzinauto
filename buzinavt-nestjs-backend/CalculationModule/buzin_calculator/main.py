@@ -443,6 +443,7 @@ async def calculate_total(request: CalculationRequest) -> CalculationResponse:
         status="success",
         exchange_rate=sell_rate,
         bank_buy_rate=buy_rate,
+        rate_date=datetime.now().strftime("%d.%m.%Y"),
         breakdown=CostBreakdown(
             buy_and_delivery_rub=float(calculation.japan_expenses_rub),
             customs_broker_rub=float(calculation.customs_broker_rub),

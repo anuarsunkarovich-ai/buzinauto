@@ -30,6 +30,8 @@ const UTIL_FEE_TYPES = [
 
 type CalculationResponse = {
   exchange_rate?: number
+  bank_buy_rate?: number
+  rate_date?: string
   total_rub?: number
   breakdown?: {
     buy_and_delivery_rub?: number
@@ -415,6 +417,13 @@ export const PriceCalculationModule: React.FC = () => {
                 <span className="text-xs text-white/40 uppercase tracking-wider font-medium">Дата обновления</span>
                 <span className="text-xs text-white/60">{new Date().toLocaleDateString('ru-RU')}</span>
               </div>
+              {result?.bank_buy_rate && (
+                <div className="pt-2 border-t border-white/10">
+                  <span className="text-xs text-white/60">
+                    Актуальный курс йены банка АТБ{result?.rate_date ? ` на ${result.rate_date}` : ''} составляет: {result.bank_buy_rate}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

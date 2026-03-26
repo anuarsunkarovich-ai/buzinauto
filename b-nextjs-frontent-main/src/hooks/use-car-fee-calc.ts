@@ -16,6 +16,7 @@ export type DialogDetailedCarItem = {
 type FastApiCalculationResponse = {
   exchange_rate?: number
   bank_buy_rate?: number
+  rate_date?: string
   total_rub?: number
   breakdown?: {
     buy_and_delivery_rub?: number
@@ -172,6 +173,8 @@ type UseCarFeeFuncEnumResult = {
   totalRubAmount: () => number
   calculator: (row: CalculatorRow) => number
   currencyPriceList: DialogDetailedCarItem[]
+  bankBuyRate?: number
+  rateDate?: string
   auctionPrice: () => number
   deliveryPrice: () => number
   dutyPrice: () => number
@@ -279,6 +282,8 @@ export function useCarFeeFuncEnum(
     totalRubAmount,
     calculator,
     currencyPriceList,
+    bankBuyRate: result?.bank_buy_rate,
+    rateDate: result?.rate_date,
     auctionPrice: () => Math.round(Number(price || 0) * exchangeRate),
     deliveryPrice: () => 0,
     dutyPrice: () => Math.round(breakdown?.customs_duty_rub || 0),
