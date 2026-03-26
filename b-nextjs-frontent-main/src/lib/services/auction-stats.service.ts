@@ -32,6 +32,7 @@ export type AuctionStatsResponse = {
     color: string
     transmission: string
     body: string
+    sale_status?: string
   }[]
   exchange_rate: number
   cached: boolean
@@ -158,6 +159,7 @@ export const buildAuctionStatsFallbackFromSearchResults = (
       color: String(car.color || ''),
       transmission: String(car.transmission || ''),
       body: String(car.body || car.model_code || ''),
+      sale_status: String(car.sale_status || ''),
     }))
 
   const firstCar = priced[0]?.car

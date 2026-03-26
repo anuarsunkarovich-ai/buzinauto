@@ -52,6 +52,25 @@ def _normalize_token(value: str) -> str:
     return value.strip().lower().replace(" ", "").replace("-", "").replace("_", "")
 
 
+def _matches_body_filter(body_filter: str, *candidates: str) -> bool:
+    normalized_filter = _normalize_token(body_filter)
+    if not normalized_filter:
+        return True
+
+    for candidate in candidates:
+        normalized_candidate = _normalize_token(str(candidate or ""))
+        if not normalized_candidate:
+            continue
+        if (
+            normalized_candidate == normalized_filter
+            or normalized_candidate in normalized_filter
+            or normalized_filter in normalized_candidate
+        ):
+            return True
+
+    return False
+
+
 def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
     # Sanitize input immediately - remove any quotes, backslashes, or whitespace
     def clean_id(s: str) -> str:
@@ -174,6 +193,7 @@ class RecentLot(BaseModel):
     color: str
     transmission: str
     body: str
+    sale_status: str = ""
 
 
 class PriceRange(BaseModel):
@@ -291,7 +311,7 @@ async def search_and_calculate(
         resolved_brand,
         resolved_model,
         search_type="max",
-        body=str(body or ""),
+        body="",
     )
 
     # ── Apply Filters ────────────────────────────────────────────────────────
@@ -316,11 +336,15 @@ async def search_and_calculate(
             <= max_grade.strip().upper()
         ]
     if body:
-        normalized_body = _normalize_token(body)
         cars = [
             car
             for car in cars
-            if _normalize_token(str(car.get("body") or "")) == normalized_body
+            if _matches_body_filter(
+                body,
+                str(car.get("body") or ""),
+                str(car.get("model_code") or ""),
+                str(car.get("modification") or ""),
+            )
         ]
     if min_year is not None:
         cars = [car for car in cars if _safe_number(car.get("year")) >= min_year]
@@ -665,9 +689,15 @@ async def auction_stats(
             <= max_grade.strip().upper()
         ]
     if body:
-        norm_body = _normalize_token(body)
         cars = [
-            c for c in cars if _normalize_token(str(c.get("body") or "")) == norm_body
+            c
+            for c in cars
+            if _matches_body_filter(
+                body,
+                str(c.get("body") or ""),
+                str(c.get("model_code") or ""),
+                str(c.get("modification") or ""),
+            )
         ]
 
     priced = [c for c in cars if _to_int_price(c.get("price_jpy", 0)) > 0]
@@ -768,6 +798,7 @@ async def auction_stats(
             color=str(c.get("color") or ""),
             transmission=str(c.get("transmission") or ""),
             body=str(c.get("body") or ""),
+            sale_status=str(c.get("sale_status") or ""),
         )
         for c in sorted_cars
     ]

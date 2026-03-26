@@ -7,6 +7,32 @@ import { toUrlSlug } from '@/lib/transform'
 import { PriceCalculatorFallback } from './price-calculator'
 import { SimpleLineChart } from './simple-line-chart'
 
+const getLotStatus = (saleStatus: string) => {
+  const normalized = saleStatus.trim().toLowerCase()
+  const isUnsold = /не\s*продан/.test(normalized)
+  const isSold = !isUnsold && /продан/.test(normalized)
+
+  if (isSold) {
+    return {
+      badgeLabel: 'SOLD',
+      badgeClass:
+        'border-white/20 bg-destructive/90 text-white shadow-lg shadow-destructive/20',
+    }
+  }
+
+  if (isUnsold) {
+    return {
+      badgeLabel: 'NOT SOLD',
+      badgeClass: 'border-white/20 bg-sky-500/85 text-white shadow-lg shadow-sky-500/20',
+    }
+  }
+
+  return {
+    badgeLabel: 'ARCHIVE',
+    badgeClass: 'border-white/20 bg-black/70 text-white shadow-lg shadow-black/20',
+  }
+}
+
 export const AuctionAnalyticsBlock = async ({
   brand,
   model,
@@ -29,8 +55,8 @@ export const AuctionAnalyticsBlock = async ({
     return (
       <Card className="border-border/60 bg-card/70">
         <CardContent className="py-10 text-center text-muted-foreground">
-          No completed auction lots matched the current filters yet. Try broadening the filters or
-          opening the live catalog view for the latest offers.
+          No auction lots matched the current filters yet. Try broadening the filters or opening
+          the live catalog view for the latest offers.
         </CardContent>
       </Card>
     )
@@ -46,7 +72,12 @@ export const AuctionAnalyticsBlock = async ({
 
   return (
     <div className="flex flex-col space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div
+        className={`
+          grid grid-cols-1 gap-4
+          md:grid-cols-3
+        `}
+      >
         <Card className="border-border/60 bg-card/70">
           <CardHeader className="pb-2">
             <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
@@ -109,7 +140,7 @@ export const AuctionAnalyticsBlock = async ({
         <CardHeader>
           <div className="flex items-center justify-between">
             <span className="text-lg font-bold">
-              Пульс рынка (последние {chartData.length} продаж)
+              Пульс рынка (последние {chartData.length} лотов)
             </span>
             <span className="text-sm text-muted-foreground">Цена в иенах</span>
           </div>
@@ -120,13 +151,22 @@ export const AuctionAnalyticsBlock = async ({
       </Card>
 
       <div>
-        <h3 className="mb-4 text-xl font-bold">Недавно проданы (Архив)</h3>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <h3 className="mb-4 text-xl font-bold">Недавние лоты (статистика)</h3>
+        <div
+          className={`
+            grid grid-cols-1 gap-4
+            md:grid-cols-2
+            lg:grid-cols-4
+          `}
+        >
           {stats.recent_lots.slice(0, 8).map((lot) => {
             const mileageKm = Number(String(lot.mileage ?? 0).replace(/[^\d]/g, '')) || 0
             const year = Number(lot.year) || new Date().getFullYear()
             const enginePower = Number(lot.engine_cc) || 0
             const titleParts = [lot.model, lot.body, String(year)].filter(Boolean)
+            const saleStatus = String(lot.sale_status || '').trim()
+            const { badgeLabel, badgeClass } = getLotStatus(saleStatus)
+            const resultTag = saleStatus ? `${saleStatus} ${lot.auction_date}` : lot.auction_date
 
             return (
               <div key={lot.lot} className="group relative flex h-full w-full flex-col">
@@ -157,7 +197,7 @@ export const AuctionAnalyticsBlock = async ({
                     tags={[
                       lot.color,
                       enginePower ? `${enginePower} cc` : undefined,
-                      `Sold ${lot.auction_date}`,
+                      resultTag,
                     ].filter(Boolean) as string[]}
                     price={lot.price_jpy}
                     currency="JPY"
@@ -172,8 +212,14 @@ export const AuctionAnalyticsBlock = async ({
                   />
                 </CarCarouselOnHoverCard>
                 <div className="pointer-events-none absolute top-2 left-2 z-10">
-                  <div className="rounded-sm border border-white/20 bg-destructive/90 px-3 py-1 text-sm font-bold tracking-widest text-white uppercase shadow-lg shadow-destructive/20 backdrop-blur-sm">
-                    SOLD
+                  <div
+                    className={`
+                      rounded-sm px-3 py-1 text-sm font-bold tracking-widest uppercase
+                      backdrop-blur-sm
+                      ${badgeClass}
+                    `}
+                  >
+                    {badgeLabel}
                   </div>
                 </div>
               </div>

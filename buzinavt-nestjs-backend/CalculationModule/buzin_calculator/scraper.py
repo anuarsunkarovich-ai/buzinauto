@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+from datetime import datetime, timedelta
 import os
 import re
 import time
@@ -219,14 +220,32 @@ def _ensure_aleado_session(client: httpx.Client) -> None:
     _login_aleado(client)
 
 
-def _fetch_aleado_page(path: str, params: dict[str, Any] | None = None) -> httpx.Response:
+def _fetch_aleado_page(
+    path: str,
+    params: dict[str, Any] | list[tuple[str, Any]] | None = None,
+    *,
+    method: str = "GET",
+    data: dict[str, Any] | list[tuple[str, Any]] | None = None,
+) -> httpx.Response:
     with _aleado_session_context() as client:
         _ensure_aleado_session(client)
 
-        response = client.get(_absolute_aleado_url(path), params=params)
+        if method.upper() == "POST":
+            response = client.post(_absolute_aleado_url(path), params=params, data=data)
+        else:
+            response = client.get(_absolute_aleado_url(path), params=params)
         if response.status_code in {401, 403} or _is_guest_page(response.text, str(response.url)):
             _login_aleado(client)
-            response = client.get(_absolute_aleado_url(path), params=params)
+            if method.upper() == "POST":
+                response = client.post(_absolute_aleado_url(path), params=params, data=data)
+            else:
+                if search_type == "stats":
+                    response = client.post(
+                        _absolute_aleado_url(path),
+                        data=_build_stats_search_payload(brand_id, model_id),
+                    )
+                else:
+                    response = client.get(_absolute_aleado_url(path), params=params)
 
         response.raise_for_status()
         if _is_guest_page(response.text, str(response.url)):
@@ -607,11 +626,48 @@ def _find_lot_candidate_rows(soup: BeautifulSoup) -> list[Any]:
 
         if row.find("img", attrs={"name": re.compile(r"img_preview", re.IGNORECASE)}):
             candidates.append(row)
+            continue
+
+        cells = row.find_all("td")
+        if len(cells) >= 18:
+            lot_text = cells[1].get_text(" ", strip=True) if len(cells) > 1 else ""
+            if re.fullmatch(r"\d+", re.sub(r"\s+", "", lot_text)):
+                candidates.append(row)
 
     return candidates
 
 
-def _parse_price_jpy(soup: BeautifulSoup, row) -> int:
+def _parse_thousand_yen_price(raw_value: str) -> int:
+    text = (raw_value or "").strip().replace(" ", "").replace(",", ".")
+    if not text or not re.search(r"\d", text):
+        return 0
+
+    try:
+        return int(float(text) * 1000)
+    except ValueError:
+        return 0
+
+
+def _matches_normalized_body_filter(body_filter: str, *candidates: str) -> bool:
+    normalized_filter = _normalize(body_filter)
+    if not normalized_filter:
+        return True
+
+    for candidate in candidates:
+        normalized_candidate = _normalize(candidate)
+        if not normalized_candidate:
+            continue
+        if (
+            normalized_candidate == normalized_filter
+            or normalized_candidate in normalized_filter
+            or normalized_filter in normalized_candidate
+        ):
+            return True
+
+    return False
+
+
+def _parse_price_jpy(soup: BeautifulSoup, row, cols: list[str] | None = None) -> int:
     row_index_match = re.search(r"cell_(\d+)", row.get("id", "") or "")
     row_index = row_index_match.group(1) if row_index_match else ""
 
@@ -628,6 +684,12 @@ def _parse_price_jpy(soup: BeautifulSoup, row) -> int:
                 except ValueError:
                     pass
 
+    if cols and len(cols) >= 3:
+        for raw_value in (cols[-2], cols[-3]):
+            parsed_price = _parse_thousand_yen_price(raw_value)
+            if parsed_price > 0:
+                return parsed_price
+
     if not row_index:
         return 0
 
@@ -640,14 +702,32 @@ def _parse_price_jpy(soup: BeautifulSoup, row) -> int:
     elif start_price and start_price.get_text(strip=True):
         raw_price = start_price.get_text(strip=True)
 
-    raw_price = raw_price.replace(" ", "").replace(",", ".")
-    if not raw_price or not re.search(r"\d", raw_price):
-        return 0
+    return _parse_thousand_yen_price(raw_price)
 
-    try:
-        return int(float(raw_price) * 1000)
-    except ValueError:
-        return 0
+
+def _build_stats_search_payload(brand_id: str, model_id: str = "") -> dict[str, str]:
+    today = datetime.utcnow() + timedelta(hours=9)
+    start_date = today - timedelta(days=90)
+    payload = {
+        "p": "project/findlots",
+        "result": "0",
+        "mrk": brand_id,
+        "sday": start_date.strftime("%d"),
+        "smonth": start_date.strftime("%m"),
+        "syear": start_date.strftime("%Y"),
+        "fday": today.strftime("%d"),
+        "fmonth": today.strftime("%m"),
+        "fyear": today.strftime("%Y"),
+        "year1": "",
+        "year2": "",
+        "v1": "",
+        "v2": "",
+        "transmission": "",
+        "rollback_data": "",
+    }
+    if model_id and model_id != "-1":
+        payload["mdl"] = model_id
+    return payload
 
 
 def _extract_average_price_args(page_html: str) -> list[str]:
@@ -1155,14 +1235,22 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
     ]
     if model_id and model_id != "-1":
         params.append(("mdl[]", model_id))
-    if body:
+    if body and search_type != "stats":
         params.append(("body", body))
 
     print(f"DEBUG: Scraper calling Aleado path={search_type} with params={params}")
 
     try:
         path = "/stats/" if search_type == "stats" else "/auctions/"
-        response = _fetch_aleado_page(path, params=params)
+        request_kwargs: dict[str, Any] = {"params": params}
+        if search_type == "stats":
+            path = "/stats/?p=project/findlots&s&ld"
+            request_kwargs = {
+                "method": "POST",
+                "data": _build_stats_search_payload(brand_id, model_id),
+            }
+
+        response = _fetch_aleado_page(path, **request_kwargs)
         
         # Check for login redirection
         if "Вход" in response.text and (("username" in response.text) or ("password" in response.text)):
@@ -1176,16 +1264,12 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
         cars: list[dict[str, Any]] = []
         rows = _find_lot_candidate_rows(soup)
 
-        if not rows and search_type == "stats" and path == "/stats/":
-            print("DEBUG: Stats search returned no lot-like rows at /stats/. Returning an empty result.")
-            return []
-
-        # Broaden the selector for the live auctions page only, where the markup can vary.
+        # Broaden the selector when the markup varies or when stats rows do not contain links.
         if not rows:
             rows = soup.find_all("tr", id=re.compile(r"^cell_|^row_|^id_lot_|\d+"))
         if not rows:
             rows = soup.find_all("tr", class_=re.compile(r"row\s*\d+|lot-row", re.IGNORECASE))
-        if len(rows) < 2 and search_type != "stats":
+        if len(rows) < 2:
             rows = [r for r in soup.find_all("tr") if len(r.find_all("td")) >= 8]
 
         for row in rows:
@@ -1194,8 +1278,9 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
                 continue
 
             # Identify lot number - usually in 2nd column
-            lot = cols[1] if len(cols) > 1 else ""
-            if not any(c.isdigit() for c in lot):
+            raw_lot = cols[1] if len(cols) > 1 else ""
+            lot = re.sub(r"\s+", "", raw_lot)
+            if not re.fullmatch(r"\d+", lot):
                 continue
 
             auction_name = cols[2] if len(cols) > 2 else ""
@@ -1206,12 +1291,15 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
             year = cols[8] if len(cols) > 8 else ""
             engine_cc = _extract_first_number(cols[9]) if len(cols) > 9 else 0
             transmission = cols[10] if len(cols) > 10 else ""
-            color = cols[11] if len(cols) > 11 else ""
+            if search_type == "stats":
+                color = cols[12] if len(cols) > 12 else (cols[11] if len(cols) > 11 else "")
+            else:
+                color = cols[11] if len(cols) > 11 else ""
             mileage = cols[14] if len(cols) > 14 else ""
             grade = cols[15] if len(cols) > 15 else ""
             sale_status = cols[-1] if cols else ""
 
-            price_jpy = _parse_price_jpy(soup, row)
+            price_jpy = _parse_price_jpy(soup, row, cols)
 
             img_tag = row.find("img", attrs={"name": re.compile(r"img_preview", re.IGNORECASE)}) or row.find("img")
             raw_image_url = ""
@@ -1254,6 +1342,18 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
                     "raw_cols": cols,
                 }
             )
+
+        if body:
+            cars = [
+                car
+                for car in cars
+                if _matches_normalized_body_filter(
+                    body,
+                    str(car.get("body") or ""),
+                    str(car.get("model_code") or ""),
+                    str(car.get("modification") or ""),
+                )
+            ]
 
         print(f"DEBUG: Parsed {len(cars)} Aleado result rows")
         return cars

@@ -60,6 +60,7 @@ export type FastApiSearchCar = {
   color?: string
   transmission?: string
   grade?: string
+  sale_status?: string
 }
 
 type FastApiSearchResponse = {
