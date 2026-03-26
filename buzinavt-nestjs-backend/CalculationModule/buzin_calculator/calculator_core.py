@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
+import re
+from typing import Any
 
 from config import (
     BASE_UTIL_FEE_RUB,
@@ -71,13 +73,36 @@ class CalculationBreakdown:
 
 
 def quantize_money(value: Decimal) -> Decimal:
-    return value.quantize(MONEY_Q, rounding=ROUND_HALF_UP)
+    """Safe quantization for money values."""
+    if value is None or not value.is_finite():
+        return ZERO
+    try:
+        return value.quantize(MONEY_Q, rounding=ROUND_HALF_UP)
+    except Exception:
+        # Fallback for extreme values
+        return ZERO
 
 
-def _as_decimal(value: int | float | str | Decimal) -> Decimal:
+def _as_decimal(value: Any) -> Decimal:
+    """Safely convert any value to Decimal."""
+    if value is None:
+        return ZERO
     if isinstance(value, Decimal):
         return value
-    return Decimal(str(value))
+
+    # Handle potentially invalid strings or objects
+    try:
+        val_str = str(value).strip()
+        if not val_str or val_str.lower() in {"none", "null", "n/a", "---", "-", "nan", "inf"}:
+            return ZERO
+        
+        # Remove common non-numeric separators but keep decimals and sign
+        clean = re.sub(r"[^\d.-]", "", val_str)
+        if not clean or clean == "." or clean == "-":
+            return ZERO
+        return Decimal(clean)
+    except Exception:
+        return ZERO
 
 
 def normalize_user_type(user_type: str | None) -> str:

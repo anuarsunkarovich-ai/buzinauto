@@ -5,8 +5,10 @@ import time
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
+from decimal import Decimal, ROUND_HALF_UP
 import httpx
 from bs4 import BeautifulSoup
+from calculator_core import _as_decimal, quantize_money, ZERO, MONEY_Q
 
 _EUR_CACHE = {"rate": 105.0, "timestamp": 0.0}
 _ATB_CACHE = {"buy": 0.502, "sell": 0.55, "timestamp": 0.0}
@@ -401,8 +403,15 @@ async def fetch_tks_customs_async(
     return await asyncio.to_thread(calculate_customs_phys_person, price_jpy, engine_cc, age, sell_rate)
 
 
-def fetch_aleado_filters(brand_id: str | None = None) -> list[dict[str, str]]:
-    cache_key = f"filters:{brand_id or 'brands'}"
+def fetch_aleado_filters(
+    brand_id: str | None = None, model_id: str | None = None
+) -> list[dict[str, str]]:
+    """Fetch brands, models, or body types from Aleado via Sajax where possible."""
+    if model_id and model_id != "-1":
+        cache_key = f"filters:bodies:{brand_id}:{model_id}"
+    else:
+        cache_key = f"filters:{brand_id or 'brands'}"
+
     cached = _get_cached_filters(cache_key)
     if cached is not None:
         return cached
@@ -411,9 +420,31 @@ def fetch_aleado_filters(brand_id: str | None = None) -> list[dict[str, str]]:
         options: list[dict[str, str]] = []
         seen: set[tuple[str, str]] = set()
 
-        if brand_id:
+        if model_id and model_id != "-1":
+            # Use Sajax to load body types/modifications
+            bodies_html = call_aleado_sajax(
+                "loadModelsType",
+                [brand_id, model_id],
+                path="/stats/",
+                base_params={"p": "project/findlots"},
+            )
+            if not bodies_html:
+                return []
+
+            soup = BeautifulSoup(bodies_html, "html.parser")
+            for item in soup.find_all("option"):
+                value = (item.get("value") or "").strip()
+                text = item.get_text(" ", strip=True)
+                if not value or value == "-1" or not text or text.startswith("---"):
+                    continue
+                key = (value, text)
+                if key in seen:
+                    continue
+                seen.add(key)
+                options.append({"id": value, "name": text})
+
+        elif brand_id:
             # Use Sajax to load models snippet directly.
-            # loadModels usually takes [makerId, modelId]. -1 means all models.
             models_html = call_aleado_sajax(
                 "loadModels",
                 [brand_id, "-1"],
@@ -421,13 +452,11 @@ def fetch_aleado_filters(brand_id: str | None = None) -> list[dict[str, str]]:
                 base_params={"p": "project/findlots"},
             )
             if not models_html:
-                raise RuntimeError("Failed to fetch models via Sajax")
+                return []
 
             soup = BeautifulSoup(models_html, "html.parser")
             options.append({"id": "-1", "name": "---Все модели---"})
 
-            # Sajax returns a list of options or a select dropdown.
-            # We look for all <option> tags.
             for item in soup.find_all("option"):
                 value = (item.get("value") or "").strip()
                 text = item.get_text(" ", strip=True)

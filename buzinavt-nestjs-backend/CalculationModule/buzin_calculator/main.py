@@ -418,9 +418,10 @@ async def search_and_calculate(
 @app.get("/api/v1/auction/filters")
 def get_auction_filters(
     brand_id: str = Query(None, description="Brand ID to fetch models for"),
+    model_id: str = Query(None, description="Model ID to fetch body types for"),
 ):
     try:
-        data = fetch_aleado_filters(brand_id)
+        data = fetch_aleado_filters(brand_id, model_id)
         return {"status": "success", "results": data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
