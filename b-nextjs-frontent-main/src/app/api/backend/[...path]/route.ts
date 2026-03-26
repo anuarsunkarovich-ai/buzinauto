@@ -59,14 +59,27 @@ const handleRequest = async (request: NextRequest, { params }: RouteContext) => 
     ? undefined
     : await request.arrayBuffer()
 
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers: createForwardHeaders(request),
-    body: requestBody,
-    cache: 'no-store',
-  })
+  try {
+    const response = await fetch(targetUrl, {
+      method: request.method,
+      headers: createForwardHeaders(request),
+      body: requestBody,
+      cache: 'no-store',
+    })
 
-  return createResponse(response)
+    return createResponse(response)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown upstream fetch error'
+
+    return NextResponse.json(
+      {
+        message: 'Backend upstream request failed.',
+        targetUrl,
+        error: message,
+      },
+      { status: 502 },
+    )
+  }
 }
 
 export const GET = handleRequest

@@ -38,6 +38,16 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "buzinavto-calc-api"}
+
+
+@app.get("/health")
+def healthcheck():
+    return {"status": "ok"}
+
+
 def _normalize_token(value: str) -> str:
     return value.strip().lower().replace(" ", "").replace("-", "").replace("_", "")
 
