@@ -464,6 +464,11 @@ def fetch_aleado_filters(
         seen: set[tuple[str, str]] = set()
 
         if model_id and model_id != "-1":
+            fallback_bodies = _fallback_body_options_from_live_search(brand_id, model_id)
+            if fallback_bodies:
+                _set_cached_filters(cache_key, fallback_bodies)
+                return fallback_bodies
+
             # Use Sajax to load body types/modifications
             bodies_html = call_aleado_sajax(
                 "loadModelsType",
@@ -575,6 +580,35 @@ def fetch_aleado_filters(
 def _extract_first_number(text: str) -> int:
     digits = re.sub(r"[^0-9]", "", text or "")
     return int(digits) if digits else 0
+
+
+def _contains_no_results_marker(text: str) -> bool:
+    normalized = " ".join(str(text or "").split()).lower()
+    markers = (
+        "всего найдено лотов: 0",
+        "всего найдено лотов 0",
+        "found lots: 0",
+        "total lots found: 0",
+    )
+    return any(marker in normalized for marker in markers)
+
+
+def _find_lot_candidate_rows(soup: BeautifulSoup) -> list[Any]:
+    candidates: list[Any] = []
+
+    for row in soup.find_all("tr"):
+        if row.find("a", href=re.compile(r"project/(lot|statslot)", re.IGNORECASE)):
+            candidates.append(row)
+            continue
+
+        if row.find("input", attrs={"name": re.compile(r"priceLot[ES]\d+", re.IGNORECASE)}):
+            candidates.append(row)
+            continue
+
+        if row.find("img", attrs={"name": re.compile(r"img_preview", re.IGNORECASE)}):
+            candidates.append(row)
+
+    return candidates
 
 
 def _parse_price_jpy(soup: BeautifulSoup, row) -> int:
@@ -1140,31 +1174,19 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
         soup = BeautifulSoup(response.text, "html.parser")
 
         cars: list[dict[str, Any]] = []
-        # Find all rows that look like lot data.
-        # Indicator 1: tr with ID cell_NNN or class row NNN
-        rows = soup.find_all("tr", id=re.compile(r"^cell_|^row_|^id_lot_|\d+"))
-        if not rows:
-            rows = soup.find_all("tr", class_=re.compile(r"row\s*\d+|lot-row", re.IGNORECASE))
-        
-        # Indicator 2: Any tr that contains a link to project/lot or project/statslot
-        if len(rows) < 2:
-            all_rows = soup.find_all("tr")
-            candidate_rows = []
-            for r in all_rows:
-                # Stats search might use project/lot or something similar
-                if r.find("a", href=re.compile(r"project/(lot|statslot|findlots)", re.IGNORECASE)):
-                    candidate_rows.append(r)
-            if candidate_rows:
-                rows = candidate_rows
-                
-        # Indicator 3: Any tr that has at least 8 columns (stats usually have many)
-        if len(rows) < 2:
-             all_rows = soup.find_all("tr")
-             rows = [r for r in all_rows if len(r.find_all("td")) >= 8]
+        rows = _find_lot_candidate_rows(soup)
 
         if not rows and search_type == "stats" and path == "/stats/":
-             print("DEBUG: Stats search returned 0 rows at /stats/. Returning an empty result.")
-             return []
+            print("DEBUG: Stats search returned no lot-like rows at /stats/. Returning an empty result.")
+            return []
+
+        # Broaden the selector for the live auctions page only, where the markup can vary.
+        if not rows:
+            rows = soup.find_all("tr", id=re.compile(r"^cell_|^row_|^id_lot_|\d+"))
+        if not rows:
+            rows = soup.find_all("tr", class_=re.compile(r"row\s*\d+|lot-row", re.IGNORECASE))
+        if len(rows) < 2 and search_type != "stats":
+            rows = [r for r in soup.find_all("tr") if len(r.find_all("td")) >= 8]
 
         for row in rows:
             cols = [td.get_text(" ", strip=True) for td in row.find_all("td")]
