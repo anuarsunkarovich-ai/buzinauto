@@ -15,10 +15,10 @@ import {
 import { Input, InputNumber } from '@/components/ui/input'
 import { Countries, Country, CountryPathname, CountryPathnameDefault } from '@/constants/country'
 import { Ratings } from '@/constants/rating'
+import { useBodyTypes } from '@/hooks/use-body-types'
 import { useBrands } from '@/hooks/use-brands'
 import { useCurrency } from '@/hooks/use-currency'
 import { useModels } from '@/hooks/use-models'
-import { useBodyTypes } from '@/hooks/use-body-types'
 import { toModelDisplay, toUrlSlug } from '@/lib/transform'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { usePathname, useRouter } from 'next/navigation'
@@ -47,10 +47,12 @@ export type RenderArgs<TFieldValues extends FieldValues, TName extends FieldPath
 
 const normalizeOptionValue = (value?: string) => toUrlSlug(value || '')
 
-export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
-  defaultValues,
-  onSearch,
-}) => {
+const appendQueryString = (pathname: string, searchParams: URLSearchParams) => {
+  const query = searchParams.toString()
+  return query ? `${pathname}?${query}` : pathname
+}
+
+export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSearch }) => {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -113,7 +115,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
     loading: modelsLoading,
     hasNext: modelsHasNext,
     loadMore: loadMoreModels,
-  } = useModels(resolvedSelectedMake, modelSearchQuery, form.watch('saleCountry'), !!resolvedSelectedMake)
+  } = useModels(
+    resolvedSelectedMake,
+    modelSearchQuery,
+    form.watch('saleCountry'),
+    !!resolvedSelectedMake,
+  )
 
   React.useEffect(() => {
     const previousSelectedMake = previousSelectedMakeRef.current
@@ -145,7 +152,6 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
     }
   }, [defaultValues?.make, form, selectedMake, selectedModel])
 
-  // Clear body field when model changes
   React.useEffect(() => {
     const currentBody = form.getValues('body')
     if (currentBody && !selectedModel) {
@@ -186,10 +192,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
     return match?.modelSlug || match?.model || selectedModel
   }, [models, selectedModel])
 
-  const {
-    bodyTypes,
-    loading: bodyTypesLoading,
-  } = useBodyTypes(resolvedSelectedMake, resolvedSelectedModel, form.watch('saleCountry'), !!resolvedSelectedMake && !!resolvedSelectedModel)
+  const { bodyTypes, loading: bodyTypesLoading } = useBodyTypes(
+    resolvedSelectedMake,
+    resolvedSelectedModel,
+    form.watch('saleCountry'),
+    !!resolvedSelectedMake && !!resolvedSelectedModel,
+  )
 
   const bodyOptions = React.useMemo(
     () =>
@@ -249,7 +257,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
 
   const onSubmit = React.useCallback(
     async (values: any) => {
-      const selectedModel = models.find((m) => (m.modelSlug || m.model) === values.model)
+      const selectedModelOption = models.find((m) => (m.modelSlug || m.model) === values.model)
       const country = CountryPathname.find((e) => e.country === values.saleCountry)
       const currency = country?.country === Country.JAPAN ? 'JPY' : 'CNY'
 
@@ -305,31 +313,33 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
       const isStatsPath = pathname.includes('/stats')
       const targetSubPath = isStatsPath ? 'stats' : 'cars'
 
-      if (values.make && values.model && selectedModel) {
-        // Resolve the brands/models from the lists to get names for the URL
-        const brandMatch = brands.find(b => b.brand === values.make)
-        const modelMatch = models.find(m => (m.modelSlug || m.model) === values.model)
-        
+      if (values.make && values.model && selectedModelOption) {
+        const brandMatch = brands.find((brand) => brand.brand === values.make)
+        const modelMatch = models.find((model) => (model.modelSlug || model.model) === values.model)
+
         const makeSlug = toUrlSlug(brandMatch?.brandName || values.make)
         const modelSlug = modelMatch?.modelSlug || toUrlSlug(modelMatch?.modelDisplay || values.model)
-        
-        router.push(`${country?.pathname}/${targetSubPath}/${makeSlug}/${modelSlug}?${query.toString()}`)
-        return
-      } else if (values.make) {
-        const brandMatch = brands.find(b => b.brand === values.make)
-        const makeSlug = toUrlSlug(brandMatch?.brandName || values.make)
-        
-        router.push(`${country?.pathname}/${targetSubPath}/${makeSlug}?${query.toString()}`)
+
+        router.push(
+          appendQueryString(`${country?.pathname}/${targetSubPath}/${makeSlug}/${modelSlug}`, query),
+        )
         return
       }
-      router.push(`${country?.pathname}${isStatsPath ? '/stats' : ''}?${query.toString()}`)
+
+      if (values.make) {
+        const brandMatch = brands.find((brand) => brand.brand === values.make)
+        const makeSlug = toUrlSlug(brandMatch?.brandName || values.make)
+
+        router.push(appendQueryString(`${country?.pathname}/${targetSubPath}/${makeSlug}`, query))
+        return
+      }
+
+      router.push(appendQueryString(`${country?.pathname}${isStatsPath ? '/stats' : ''}`, query))
     },
     [
       brands,
       models,
       convert,
-      defaultValues?.make,
-      defaultValues?.model,
       onSearch,
       pathname,
       resolvedSelectedMake,
@@ -348,12 +358,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
           control={form.control}
           name="saleCountry"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Страна</FormLabel>
               <FormControl className="mb-0">
                 <Combobox
@@ -361,9 +366,9 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
                   options={Countries}
                   valueKey="value"
                   labelKey="label"
-                  placeholder={'Страна...'}
+                  placeholder="Страна..."
                   searchPlaceholder="Найти страну..."
-                  emptyMessage={'Упс... Ничего не найдено'}
+                  emptyMessage="Упс... Ничего не найдено"
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -374,16 +379,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="make"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Марка</FormLabel>
               <FormControl>
                 <ExtendedCombobox
@@ -410,16 +411,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="model"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Модель</FormLabel>
               <FormControl>
                 <ExtendedCombobox
@@ -453,16 +450,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="minGrade"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Оценка от</FormLabel>
               <FormControl className="mb-0">
                 <Combobox
@@ -470,9 +463,9 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
                   options={Ratings}
                   valueKey="value"
                   labelKey="label"
-                  placeholder={'Оценка от...'}
+                  placeholder="Оценка от..."
                   searchPlaceholder="Найти оценку..."
-                  emptyMessage={'Упс... Ничего не найдено'}
+                  emptyMessage="Упс... Ничего не найдено"
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -483,16 +476,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="maxGrade"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Оценка до</FormLabel>
               <FormControl className="mb-0">
                 <Combobox
@@ -500,9 +489,9 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
                   options={Ratings}
                   valueKey="value"
                   labelKey="label"
-                  placeholder={'Оценка до...'}
+                  placeholder="Оценка до..."
                   searchPlaceholder="Найти оценку..."
-                  emptyMessage={'Упс... Ничего не найдено'}
+                  emptyMessage="Упс... Ничего не найдено"
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -513,16 +502,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="body"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Модель кузова</FormLabel>
               <FormControl>
                 <Combobox
@@ -550,21 +535,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="minYear"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Минимальный год</FormLabel>
               <FormControl className="mb-0">
                 <InputNumber
                   className="select-none"
-                  placeholder={'Минимальный год...'}
+                  placeholder="Минимальный год..."
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -575,21 +556,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="maxYear"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Максимальный год</FormLabel>
               <FormControl className="mb-0">
                 <InputNumber
                   className="select-none"
-                  placeholder={'Максимальный год...'}
+                  placeholder="Максимальный год..."
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -600,21 +577,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="minEnginePower"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
-              <FormLabel>Минимальный объём двигателя (л)</FormLabel>
+            <FormItem className="col-span-2 md:col-span-1">
+              <FormLabel>Минимальный объем двигателя (л)</FormLabel>
               <FormControl className="mb-0">
                 <InputNumber
                   className="select-none"
-                  placeholder={'Минимальный объём двигателя...'}
+                  placeholder="Минимальный объем двигателя..."
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -625,21 +598,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="maxEnginePower"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
-              <FormLabel>Максимальный объём двигателя (л)</FormLabel>
+            <FormItem className="col-span-2 md:col-span-1">
+              <FormLabel>Максимальный объем двигателя (л)</FormLabel>
               <FormControl className="mb-0">
                 <InputNumber
                   className="select-none"
-                  placeholder={'Максимальный объём двигателя...'}
+                  placeholder="Максимальный объем двигателя..."
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -650,21 +619,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="minMileageKm"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Минимальный пробег (км)</FormLabel>
               <FormControl className="mb-0">
                 <InputNumber
                   className="select-none"
-                  placeholder={'Минимальный пробег...'}
+                  placeholder="Минимальный пробег..."
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -675,21 +640,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="maxMileageKm"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Максимальный пробег (км)</FormLabel>
               <FormControl className="mb-0">
                 <InputNumber
                   className="select-none"
-                  placeholder={'Максимальный пробег...'}
+                  placeholder="Максимальный пробег..."
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -700,21 +661,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="minPrice"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Минимальная цена (₽)</FormLabel>
               <FormControl className="mb-0">
                 <InputNumber
                   className="select-none"
-                  placeholder={'Минимальная цена...'}
+                  placeholder="Минимальная цена..."
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -725,21 +682,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="maxPrice"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Максимальная цена (₽)</FormLabel>
               <FormControl className="mb-0">
                 <InputNumber
                   className="select-none"
-                  placeholder={'Максимальная цена...'}
+                  placeholder="Максимальная цена..."
                   onChange={(value) => {
                     field.onChange(value)
                   }}
@@ -750,16 +703,12 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="auctionDate"
           render={({ field }) => (
-            <FormItem
-              className={`
-                col-span-2
-                md:col-span-1
-              `}
-            >
+            <FormItem className="col-span-2 md:col-span-1">
               <FormLabel>Дата аукциона</FormLabel>
               <FormControl className="mb-0">
                 <Input
@@ -776,13 +725,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({
             </FormItem>
           )}
         />
+
         <Button
           type="submit"
-          className={`
-            col-span-2 col-start-1
-            hover:cursor-pointer
-            md:col-span-1
-          `}
+          className="col-span-2 col-start-1 hover:cursor-pointer md:col-span-1"
         >
           Найти автомобиль
         </Button>

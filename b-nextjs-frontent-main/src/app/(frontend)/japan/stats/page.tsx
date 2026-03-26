@@ -24,14 +24,14 @@ export default async function JapanStatsLandingPage() {
             { path: '/japan/stats', name: 'Статистика' },
           ]}
         />
-        <div className="max-w-4xl mx-auto py-12">
-          <Title as="h1" className="text-4xl font-black text-center mb-4 uppercase tracking-tight">
+        <div className="mx-auto max-w-4xl py-12">
+          <Title as="h1" className="mb-4 text-center text-4xl font-black tracking-tight uppercase">
             Статистика <span className="text-primary italic">аукционов</span>
           </Title>
-          <p className="text-center text-muted-foreground mb-12 text-lg">
+          <p className="mb-12 text-center text-lg text-muted-foreground">
             Выберите марку и модель для просмотра аналитики цен и завершенных торгов.
           </p>
-          <div className="bg-card/30 p-8 rounded-3xl border border-border/60 shadow-2xl backdrop-blur-sm">
+          <div className="rounded-3xl border border-border/60 bg-card/30 p-8 shadow-2xl backdrop-blur-sm">
             <FilterAuto />
           </div>
         </div>

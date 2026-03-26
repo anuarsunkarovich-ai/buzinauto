@@ -281,10 +281,15 @@ def fetch_atb_jpy_rate() -> dict[str, float]:
                 head_text = head.get_text(" ", strip=True).lower()
                 raw_text = cell.get_text(" ", strip=True)
                 value_text = raw_text.replace(head.get_text(" ", strip=True), "", 1).strip()
-                match = re.search(r"\d+[.,]?\d*", value_text)
+                match = re.search(r"(\d[\d\s]*[.,]?\d*)", value_text)
                 if not match:
                     continue
-                values[head_text] = float(match.group(0).replace(",", "."))
+                # Clean up spaces and check length
+                val_str = match.group(1).replace(" ", "").replace(",", ".")
+                # Sanity check: Price/ID shouldn't be excessively long. Max 15 digits is plenty.
+                if len(val_str.split('.')[0]) > 15:
+                    continue
+                values[head_text] = float(val_str)
 
             buy = values.get("покупка")
             sell = values.get("продажа")
@@ -982,11 +987,13 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
             if average_html:
                 soup = BeautifulSoup(average_html, "html.parser")
                 average_node = soup.find(id="average-price-sum")
-                average_price = _extract_first_number(
-                    average_node.get_text(" ", strip=True)
-                    if average_node
-                    else soup.get_text(" ", strip=True)
-                )
+                if average_node:
+                    # Clean up any currency symbols or text around the number
+                    text_val = average_node.get_text(" ", strip=True)
+                    average_price = _extract_first_number(text_val)
+                else:
+                    # If specific ID is missing, don't just take any text (prevents mega-numbers from page text)
+                    average_price = 0
 
         if average_price > 0:
             _set_cached_average_price(cache_key, average_price)
@@ -1091,17 +1098,31 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
         soup = BeautifulSoup(response.text, "html.parser")
 
         cars: list[dict[str, Any]] = []
-        # Find all rows that look like lot data. They usually have 'cell_NNN' ID or 'row' class.
-        rows = soup.find_all("tr", id=re.compile(r"^cell_\d+$"))
+        # Find all rows that look like lot data.
+        # Indicator 1: tr with ID cell_NNN or class row NNN
+        rows = soup.find_all("tr", id=re.compile(r"^cell_|^row_|^id_lot_|\d+"))
         if not rows:
-            # Fallback for different search formats
-            rows = soup.find_all("tr", class_=re.compile(r"row\s*\d+", re.IGNORECASE))
+            rows = soup.find_all("tr", class_=re.compile(r"row\s*\d+|lot-row", re.IGNORECASE))
         
-        if not rows:
-            # Check if we got an empty result message or an error
-            res_list = soup.find(id="list-lots")
-            if res_list:
-                rows = res_list.find_all("tr")[1:] # Skip header
+        # Indicator 2: Any tr that contains a link to project/lot or project/statslot
+        if len(rows) < 2:
+            all_rows = soup.find_all("tr")
+            candidate_rows = []
+            for r in all_rows:
+                # Stats search might use project/lot or something similar
+                if r.find("a", href=re.compile(r"project/(lot|statslot|findlots)", re.IGNORECASE)):
+                    candidate_rows.append(r)
+            if candidate_rows:
+                rows = candidate_rows
+                
+        # Indicator 3: Any tr that has at least 8 columns (stats usually have many)
+        if len(rows) < 2:
+             all_rows = soup.find_all("tr")
+             rows = [r for r in all_rows if len(r.find_all("td")) >= 8]
+
+        if not rows and search_type == "stats" and path == "/stats/":
+             print("DEBUG: Stats search returned 0 rows at /stats/. Returning an empty result.")
+             return []
 
         for row in rows:
             cols = [td.get_text(" ", strip=True) for td in row.find_all("td")]

@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { Text } from '@/components/ui/text'
 
 export type DataPoint = {
   label: string
@@ -13,12 +12,11 @@ export const SimpleLineChart = ({ data }: { data: DataPoint[] }) => {
 
   const width = 800
   const height = 150
-  
-  const values = data.map(d => d.value)
+
+  const values = data.map((point) => point.value)
   const max = Math.max(...values, 1)
   const min = Math.min(...values, 0)
-  
-  // Add some padding to the range so points don't hit the absolute top/bottom edges
+
   const padding = (max - min) * 0.1 || max * 0.1
   const chartMax = max + padding
   const chartMin = Math.max(0, min - padding)
@@ -30,19 +28,21 @@ export const SimpleLineChart = ({ data }: { data: DataPoint[] }) => {
     return { x, y }
   }
 
-  const points = data.map((d, i) => {
-    const { x, y } = getPosition(i, d.value)
-    return `${x},${y}`
-  }).join(' ')
+  const points = data
+    .map((point, index) => {
+      const { x, y } = getPosition(index, point.value)
+      return `${x},${y}`
+    })
+    .join(' ')
 
   const polygonPoints = `0,${height} ${points} ${width},${height}`
 
   return (
-    <div className="w-full h-full min-h-[150px] relative group text-primary">
-      <svg 
-        viewBox={`-10 -10 ${width + 20} ${height + 20}`} 
-        preserveAspectRatio="none" 
-        className="w-full h-full overflow-visible"
+    <div className="group relative h-full min-h-[150px] w-full text-primary">
+      <svg
+        viewBox={`-10 -10 ${width + 20} ${height + 20}`}
+        preserveAspectRatio="none"
+        className="h-full w-full overflow-visible"
       >
         <defs>
           <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
@@ -51,8 +51,7 @@ export const SimpleLineChart = ({ data }: { data: DataPoint[] }) => {
           </linearGradient>
         </defs>
 
-        {/* Horizontal grid lines */}
-        {[0, 0.5, 1].map(scale => {
+        {[0, 0.5, 1].map((scale) => {
           const y = scale * height
           return (
             <line
@@ -67,13 +66,8 @@ export const SimpleLineChart = ({ data }: { data: DataPoint[] }) => {
           )
         })}
 
-        {/* Gradient fill */}
-        <polygon
-          points={polygonPoints}
-          fill="url(#chart-grad)"
-        />
+        <polygon points={polygonPoints} fill="url(#chart-grad)" />
 
-        {/* The line */}
         <polyline
           fill="none"
           stroke="currentColor"
@@ -84,37 +78,34 @@ export const SimpleLineChart = ({ data }: { data: DataPoint[] }) => {
           className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-all duration-300 group-hover:stroke-primary/80"
         />
 
-        {/* Data points */}
-        {data.map((d, i) => {
-          const { x, y } = getPosition(i, d.value)
+        {data.map((point, index) => {
+          const { x, y } = getPosition(index, point.value)
           return (
-            <g key={i} className="group/point">
+            <g key={index} className="group/point">
               <circle
                 cx={x}
                 cy={y}
                 r="4"
                 fill="currentColor"
-                className="transition-all duration-300 group-hover/point:r-6 cursor-crosshair"
+                className="group-hover/point:r-6 cursor-crosshair transition-all duration-300"
               >
-                <title>{`${d.label}: ${d.value.toLocaleString('ru-RU')} ¥`}</title>
+                <title>{`${point.label}: ${point.value.toLocaleString('ru-RU')} ¥`}</title>
               </circle>
-              {/* Optional: Always show min/max labels, or just rely on native tooltip */}
             </g>
           )
         })}
       </svg>
 
-      {/* Axis labels */}
-      <div className="absolute top-0 right-0 -mt-6 text-xs text-muted-foreground whitespace-nowrap opacity-60 pointer-events-none">
+      <div className="pointer-events-none absolute top-0 right-0 -mt-6 text-xs whitespace-nowrap text-muted-foreground opacity-60">
         {Math.round(chartMax).toLocaleString('ru-RU')} ¥
       </div>
-      <div className="absolute bottom-0 right-0 -mb-6 text-xs text-muted-foreground whitespace-nowrap opacity-60 pointer-events-none">
+      <div className="pointer-events-none absolute right-0 bottom-0 -mb-6 text-xs whitespace-nowrap text-muted-foreground opacity-60">
         {Math.round(chartMin).toLocaleString('ru-RU')} ¥
       </div>
-      <div className="absolute bottom-0 left-0 -mb-6 text-xs text-muted-foreground whitespace-nowrap opacity-60 pointer-events-none">
+      <div className="pointer-events-none absolute bottom-0 left-0 -mb-6 text-xs whitespace-nowrap text-muted-foreground opacity-60">
         {data[0]?.label || ''}
       </div>
-      <div className="absolute bottom-0 right-14 -mb-6 text-xs text-muted-foreground whitespace-nowrap opacity-60 pointer-events-none">
+      <div className="pointer-events-none absolute right-14 bottom-0 -mb-6 text-xs whitespace-nowrap text-muted-foreground opacity-60">
         {data[data.length - 1]?.label || ''}
       </div>
     </div>

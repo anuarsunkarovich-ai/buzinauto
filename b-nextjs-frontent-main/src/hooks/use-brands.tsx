@@ -1,23 +1,7 @@
 import React from 'react'
-import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
+import { CatalogBrandOption, fetchCatalogBrands } from '@/lib/services/catalog-filters.service'
 
-type Brand = {
-  brand: string
-  brandName: string
-}
-
-type FastApiBrandResponse = {
-  results?: Array<{
-    id?: string
-    name?: string
-  }>
-  brands?: Array<{
-    id?: string
-    name?: string
-  }>
-}
-
-const cache = new Map<string, { data: Brand[]; timestamp: number }>()
+const cache = new Map<string, { data: CatalogBrandOption[]; timestamp: number }>()
 const CACHE_TTL = 5 * 60 * 1000
 
 const getCachedData = (key: string) => {
@@ -28,11 +12,11 @@ const getCachedData = (key: string) => {
   return null
 }
 
-const setCachedData = (key: string, data: Brand[]) => {
+const setCachedData = (key: string, data: CatalogBrandOption[]) => {
   cache.set(key, { data, timestamp: Date.now() })
 }
 
-const filterBrands = (items: Brand[], query: string) => {
+const filterBrands = (items: CatalogBrandOption[], query: string) => {
   if (!query) return items
   const normalized = query.trim().toLowerCase()
   return items.filter(
@@ -47,11 +31,10 @@ export const useBrands = (
   saleCountry: string = '',
   enabled: boolean = true,
 ) => {
-  const [allBrands, setAllBrands] = React.useState<Brand[]>([])
-  const [brands, setBrands] = React.useState<Brand[]>([])
+  const [allBrands, setAllBrands] = React.useState<CatalogBrandOption[]>([])
+  const [brands, setBrands] = React.useState<CatalogBrandOption[]>([])
   const [loading, setLoading] = React.useState(false)
   const [hasNext, setHasNext] = React.useState(false)
-  const [page, setPage] = React.useState(1)
 
   const loadBrands = React.useCallback(
     async (query: string = '', country: string = '', pageNum: number = 1) => {
@@ -68,30 +51,11 @@ export const useBrands = (
 
       setLoading(true)
       try {
-        const baseUrl = getRuntimeBackendApiUrl()
-        if (!baseUrl) {
-          throw new Error('Backend API URL is not configured')
-        }
-
-        const url = `${baseUrl}/auction/filters`
-        const response = await fetch(url, {
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
-        })
-        const data = (await response.json()) as FastApiBrandResponse
-        const results = (data.results || data.brands || []).map((item) => ({
-          brand: String(item.id || item.name || ''),
-          brandName: String(item.name || item.id || ''),
-        }))
-
-        if (response.ok) {
-          setCachedData(cacheKey, results)
-          setAllBrands(results)
-          setBrands(filterBrands(results, query))
-          setHasNext(false)
-          setPage(pageNum)
-        }
+        const results = await fetchCatalogBrands(country)
+        setCachedData(cacheKey, results)
+        setAllBrands(results)
+        setBrands(filterBrands(results, query))
+        setHasNext(false)
       } finally {
         setLoading(false)
       }

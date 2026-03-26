@@ -125,7 +125,11 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
   const [cars, setCars] = React.useState<CarVisibleCardPropsTypes[]>(initialItems)
   const [loading, setLoading] = React.useState(false)
   const [hasSubmittedSearch, setHasSubmittedSearch] = React.useState(false)
-  const [exchangeRate, setExchangeRate] = React.useState<{ rate: number; source: string; date?: string } | null>(null)
+  const [exchangeRate, setExchangeRate] = React.useState<{
+    rate: number
+    source: string
+    date?: string
+  } | null>(null)
 
   React.useEffect(() => {
     setCars(initialItems)
@@ -174,21 +178,25 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
   return (
     <div className="flex flex-col space-y-6">
       <FilterAuto defaultValues={defaultValues} onSearch={handleSearch} />
-      
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         {exchangeRate && (
-          <Text as="small" className="text-muted-foreground bg-secondary/10 px-3 py-1.5 rounded-lg border border-border/50">
-            Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> ({exchangeRate.source})
+          <Text
+            as="small"
+            className="rounded-lg border border-border/50 bg-secondary/10 px-3 py-1.5 text-muted-foreground"
+          >
+            Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> (
+            {exchangeRate.source})
             {exchangeRate.date && (
               <span className="ml-2">
-                Актуальный курс йены банка АТБ на {exchangeRate.date} составляет: {exchangeRate.rate}
+                Актуальный курс иены банка АТБ на {exchangeRate.date}: {exchangeRate.rate}
               </span>
             )}
           </Text>
         )}
-        
+
         {loading && (
-          <Text as="small" className="text-muted-foreground animate-pulse">
+          <Text as="small" className="animate-pulse text-muted-foreground">
             Загрузка свежих лотов...
           </Text>
         )}

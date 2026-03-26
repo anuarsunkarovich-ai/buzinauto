@@ -22,9 +22,9 @@ export function toModelDisplay(model: string): string {
 
   return model
     .trim()
-    .replace(/[\-\_]+/g, ' ')
+    .replace(/[\-_]+/g, ' ')
     .toLowerCase()
-    .split(/\s+/) // Разбиваем по любым пробелам
+    .split(/\s+/)
     .map((word, index) => {
       if (index === 0) {
         return word.charAt(0).toUpperCase() + word.slice(1)
@@ -72,11 +72,11 @@ export const toMoney = (amount: number, currency = 'руб.') => {
 }
 
 export const toUrlSlug = (slug: string) => {
-  return slug.replace(/[\_]+/, '-').toLowerCase()
+  return slug.trim().replace(/[_\s]+/g, '-').toLowerCase()
 }
 
 export const toValidSlug = (slug: string) => {
-  return decodeURI(slug).replace(/[\-]+/, '_').toUpperCase()
+  return decodeURI(slug).trim().replace(/[-\s]+/g, '_').toUpperCase()
 }
 
 export const toCityPrefix = (slug: string) => {
@@ -93,9 +93,9 @@ export const toReadableSlug = (model: string) => {
 
   return model
     .trim()
-    .replace(/[\-]+/g, ' ')
+    .replace(/[-]+/g, ' ')
     .toLowerCase()
-    .split(/\s+/) // Разбиваем по любым пробелам
+    .split(/\s+/)
     .map((word, index) => {
       if (index === 0) {
         return word.charAt(0).toUpperCase() + word.slice(1)

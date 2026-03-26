@@ -1,7 +1,6 @@
 import * as React from 'react'
-import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
 import { Country } from '@/constants/country'
-import { searchCars } from '@/lib/services/auction.service'
+import { fetchCatalogBodies } from '@/lib/services/catalog-filters.service'
 
 export type BodyType = {
   body: string
@@ -30,33 +29,8 @@ export const useBodyTypes = (
       setError(null)
 
       try {
-        const baseUrl = getRuntimeBackendApiUrl()
-        if (!baseUrl) return
-
-        const url = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
-        url.searchParams.set('brand_id', brand)
-        url.searchParams.set('model_id', model)
-
-        const response = await fetch(url.toString(), {
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch bodies: ${response.status}`)
-        }
-
-        const data = await response.json()
-        if (data.status === 'success' && Array.isArray(data.results)) {
-          const bodyTypesArray: BodyType[] = data.results.map((item: any) => ({
-            body: item.name,
-            id: item.id
-          }))
-          setBodyTypes(bodyTypesArray)
-        } else {
-          throw new Error(data.message || 'Malformed response')
-        }
+        const bodyTypesArray = await fetchCatalogBodies(brand, model, country)
+        setBodyTypes(bodyTypesArray)
       } catch (err) {
         console.error('useBodyTypes error:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch body types')

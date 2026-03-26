@@ -21,11 +21,11 @@ export const filterAutoSchema = z.object({
   maxMileageKm: z.coerce.number().min(0, 'Минимальный пробег 0').optional(),
   minEnginePower: z.coerce
     .number()
-    .min(0, 'Минимальный объём двигателя 0')
+    .min(0, 'Минимальный объем двигателя 0')
     .optional(),
   maxEnginePower: z.coerce
     .number()
-    .min(0, 'Минимальный объём двигателя 0')
+    .min(0, 'Минимальный объем двигателя 0')
     .optional(),
   body: z.string().optional(),
   minPrice: z.coerce

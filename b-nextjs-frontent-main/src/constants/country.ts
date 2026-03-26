@@ -22,12 +22,12 @@ export const Countries = [
   {
     value: Country.JAPAN,
     label: 'Япония',
-    genitiveLabel: 'Японии', // Родительский
+    genitiveLabel: 'Японии',
   },
   {
     value: Country.CHINA,
     label: 'Китай',
-    genitiveLabel: 'Китая', // Родительский
+    genitiveLabel: 'Китая',
   },
 ]
 

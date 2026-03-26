@@ -1,47 +1,52 @@
 import { BoxContainer } from '@/components/common/containers/box-container'
 import { AppBreadcrumb } from '@/components/features/breadcrumb'
-import { CatalogBasedStats } from '@/components/features/auction-analytics/catalog-based-stats'
+import { AuctionAnalyticsBlock } from '@/components/features/auction-analytics/auction-analytics-block'
+import { FilterAuto } from '@/components/forms/filter-auto/filter-auto'
 import { Footer } from '@/components/layout/footer'
 import { Header } from '@/components/layout/headers/header'
+import { Button } from '@/components/ui/button'
+import { Href } from '@/components/ui/href'
 import { Title } from '@/components/ui/title'
-import { HOME_BREADCRUMB, JAPAN_CAR_BREADCRUMB, JAPAN_CAR_ROOT } from '@/constants/breadcrumb'
+import { HOME_BREADCRUMB, JAPAN_CAR_ROOT } from '@/constants/breadcrumb'
 import { toReadableSlug, toValidSlug } from '@/lib/transform'
+import { Search } from 'lucide-react'
 import { Metadata } from 'next'
 import * as React from 'react'
-import { Href } from '@/components/ui/href'
-import { Button } from '@/components/ui/button'
-import { Search } from 'lucide-react'
-import { FilterAuto } from '@/components/forms/filter-auto/filter-auto'
 
 export const revalidate = 3600
 
 type Params = {
   params: Promise<{ brand: string; model: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 export async function generateMetadata({ params: paramsPromise }: Params): Promise<Metadata> {
   const { brand, model } = await paramsPromise
+
   return {
     title: `Статистика аукционов ${toReadableSlug(brand)} ${toReadableSlug(model)} | BuzinAvto`,
     description: `Реальные цены продаж и аналитика по модели ${toReadableSlug(brand)} ${toReadableSlug(model)} из Японии.`,
   }
 }
 
-export default async function JapanModelStatsPage({ 
+export default async function JapanModelStatsPage({
   params: paramsPromise,
-  searchParams: searchParamsPromise 
-}: {
-  params: Promise<{ brand: string; model: string }>
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}) {
+  searchParams: searchParamsPromise,
+}: Params) {
   const { brand, model } = await paramsPromise
   const searchParams = await searchParamsPromise
 
   const filters = {
-    min_mileage_km: typeof searchParams.minMileageKm === 'string' ? parseInt(searchParams.minMileageKm) : undefined,
-    max_mileage_km: typeof searchParams.maxMileageKm === 'string' ? parseInt(searchParams.maxMileageKm) : undefined,
-    min_year: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
-    max_year: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
+    minMileageKm:
+      typeof searchParams.minMileageKm === 'string'
+        ? parseInt(searchParams.minMileageKm)
+        : undefined,
+    maxMileageKm:
+      typeof searchParams.maxMileageKm === 'string'
+        ? parseInt(searchParams.maxMileageKm)
+        : undefined,
+    minYear: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
+    maxYear: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
     minGrade: typeof searchParams.minGrade === 'string' ? searchParams.minGrade : undefined,
     maxGrade: typeof searchParams.maxGrade === 'string' ? searchParams.maxGrade : undefined,
     body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
@@ -60,44 +65,64 @@ export default async function JapanModelStatsPage({
             { path: `/japan/stats/${brand}/${model}`, name: toReadableSlug(model) },
           ]}
         />
-        
-        <div className="bg-card/20 p-6 rounded-2xl border border-border/40 mb-10">
-           <FilterAuto 
-              defaultValues={{
-                make: toValidSlug(brand),
-                model: model,
-                minYear: typeof searchParams.minYear === 'string' ? searchParams.minYear : undefined,
-                maxYear: typeof searchParams.maxYear === 'string' ? searchParams.maxYear : undefined,
-                minMileageKm: typeof searchParams.minMileageKm === 'string' ? searchParams.minMileageKm : undefined,
-                maxMileageKm: typeof searchParams.maxMileageKm === 'string' ? searchParams.maxMileageKm : undefined,
-                minGrade: typeof searchParams.minGrade === 'string' ? searchParams.minGrade : undefined,
-                maxGrade: typeof searchParams.maxGrade === 'string' ? searchParams.maxGrade : undefined,
-                body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
-              }}
-           />
+
+        <div className="mb-10 rounded-2xl border border-border/40 bg-card/20 p-6">
+          <FilterAuto
+            defaultValues={{
+              make: toValidSlug(brand),
+              model,
+              minYear: typeof searchParams.minYear === 'string' ? searchParams.minYear : undefined,
+              maxYear: typeof searchParams.maxYear === 'string' ? searchParams.maxYear : undefined,
+              minMileageKm:
+                typeof searchParams.minMileageKm === 'string'
+                  ? searchParams.minMileageKm
+                  : undefined,
+              maxMileageKm:
+                typeof searchParams.maxMileageKm === 'string'
+                  ? searchParams.maxMileageKm
+                  : undefined,
+              minGrade: typeof searchParams.minGrade === 'string' ? searchParams.minGrade : undefined,
+              maxGrade: typeof searchParams.maxGrade === 'string' ? searchParams.maxGrade : undefined,
+              body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
+            }}
+          />
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <Title as="h1" className="text-3xl font-black uppercase tracking-tight">
+            <Title as="h1" className="text-3xl font-black tracking-tight uppercase">
               Статистика <span className="text-primary">{toReadableSlug(brand)} {toReadableSlug(model)}</span>
             </Title>
-            <p className="text-muted-foreground mt-2">Анализ рынка с учетом выбранных фильтров</p>
+            <p className="mt-2 text-muted-foreground">
+              Анализ рынка с учетом выбранных фильтров.
+            </p>
           </div>
-          
+
           <Href href={`/japan/cars/${brand}/${model}`}>
-            <Button variant="outline" className="flex items-center gap-2 border-primary text-primary hover:bg-primary/5">
-              <Search className="w-4 h-4" />
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-primary text-primary hover:bg-primary/5"
+            >
+              <Search className="h-4 w-4" />
               Вернуться к поиску в каталоге
             </Button>
           </Href>
         </div>
 
-        <CatalogBasedStats 
-          brand={toValidSlug(brand)} 
-          model={model} 
-          filters={filters}
-        />
+        <React.Suspense
+          fallback={
+            <div className="flex animate-pulse flex-col gap-8">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-32 rounded-xl bg-card/40" />
+                ))}
+              </div>
+              <div className="h-64 rounded-xl bg-card/40" />
+            </div>
+          }
+        >
+          <AuctionAnalyticsBlock brand={toValidSlug(brand)} model={model} filters={filters} />
+        </React.Suspense>
       </BoxContainer>
       <Footer />
     </div>

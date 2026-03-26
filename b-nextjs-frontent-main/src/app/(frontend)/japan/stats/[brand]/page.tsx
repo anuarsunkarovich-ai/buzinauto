@@ -24,8 +24,8 @@ export async function generateMetadata({ params: paramsPromise }: Params): Promi
   const { brand } = await paramsPromise
 
   return {
-    title: `Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° Ð°ÑƒÐºÑ†Ð¸Ð¾Ð½Ð¾Ð² ${toReadableSlug(brand)} | BuzinAvto`,
-    description: `Ð ÐµÐ°Ð»ÑŒÐ½Ñ‹Ðµ Ñ†ÐµÐ½Ñ‹ Ð¿Ñ€Ð¾Ð´Ð°Ð¶ Ð¸ Ð°Ð½Ð°Ð»Ð¸Ñ‚Ð¸ÐºÐ° Ð¿Ð¾ Ð¼Ð°Ñ€ÐºÐµ ${toReadableSlug(brand)} Ð¸Ð· Ð¯Ð¿Ð¾Ð½Ð¸Ð¸.`,
+    title: `Статистика аукционов ${toReadableSlug(brand)} | BuzinAvto`,
+    description: `Реальные цены продаж и аналитика по марке ${toReadableSlug(brand)} из Японии.`,
   }
 }
 
@@ -37,18 +37,18 @@ export default async function JapanBrandStatsPage({
   const searchParams = await searchParamsPromise
 
   const filters = {
-    min_mileage_km:
+    minMileageKm:
       typeof searchParams.minMileageKm === 'string'
         ? parseInt(searchParams.minMileageKm)
         : undefined,
-    max_mileage_km:
+    maxMileageKm:
       typeof searchParams.maxMileageKm === 'string'
         ? parseInt(searchParams.maxMileageKm)
         : undefined,
-    min_year: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
-    max_year: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
-    min_grade: typeof searchParams.minGrade === 'string' ? searchParams.minGrade : undefined,
-    max_grade: typeof searchParams.maxGrade === 'string' ? searchParams.maxGrade : undefined,
+    minYear: typeof searchParams.minYear === 'string' ? parseInt(searchParams.minYear) : undefined,
+    maxYear: typeof searchParams.maxYear === 'string' ? parseInt(searchParams.maxYear) : undefined,
+    minGrade: typeof searchParams.minGrade === 'string' ? searchParams.minGrade : undefined,
+    maxGrade: typeof searchParams.maxGrade === 'string' ? searchParams.maxGrade : undefined,
     body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
   }
 
@@ -60,20 +60,18 @@ export default async function JapanBrandStatsPage({
           items={[
             HOME_BREADCRUMB,
             JAPAN_CAR_ROOT,
-            { path: '/japan/stats', name: 'Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ°' },
+            { path: '/japan/stats', name: 'Статистика' },
             { path: `/japan/stats/${brand}`, name: toReadableSlug(brand) },
           ]}
         />
 
-        <div className="bg-card/20 p-6 rounded-2xl border border-border/40 mb-10">
+        <div className="mb-10 rounded-2xl border border-border/40 bg-card/20 p-6">
           <FilterAuto
             defaultValues={{
               make: toValidSlug(brand),
               body: typeof searchParams.body === 'string' ? searchParams.body : undefined,
-              minYear:
-                typeof searchParams.minYear === 'string' ? searchParams.minYear : undefined,
-              maxYear:
-                typeof searchParams.maxYear === 'string' ? searchParams.maxYear : undefined,
+              minYear: typeof searchParams.minYear === 'string' ? searchParams.minYear : undefined,
+              maxYear: typeof searchParams.maxYear === 'string' ? searchParams.maxYear : undefined,
               minMileageKm:
                 typeof searchParams.minMileageKm === 'string'
                   ? searchParams.minMileageKm
@@ -88,13 +86,13 @@ export default async function JapanBrandStatsPage({
           />
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <Title as="h1" className="text-3xl font-black uppercase tracking-tight">
-              Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° <span className="text-primary">{toReadableSlug(brand)}</span>
+            <Title as="h1" className="text-3xl font-black tracking-tight uppercase">
+              Статистика <span className="text-primary">{toReadableSlug(brand)}</span>
             </Title>
-            <p className="text-muted-foreground mt-2">
-              ÐžÐ±Ñ‰Ð°Ñ Ð°Ð½Ð°Ð»Ð¸Ñ‚Ð¸ÐºÐ° Ð¿Ð¾ Ð¼Ð°Ñ€ÐºÐµ. Ð”Ð¾Ð±Ð°Ð²ÑŒÑ‚Ðµ Ð¼Ð¾Ð´ÐµÐ»ÑŒ Ð² Ñ„Ð¸Ð»ÑŒÑ‚Ñ€Ðµ, Ñ‡Ñ‚Ð¾Ð±Ñ‹ ÑÑƒÐ·Ð¸Ñ‚ÑŒ Ð²Ñ‹Ð±Ð¾Ñ€ÐºÑƒ.
+            <p className="mt-2 text-muted-foreground">
+              Общая аналитика по марке. Добавьте модель в фильтре, чтобы сузить выборку.
             </p>
           </div>
 
@@ -103,21 +101,21 @@ export default async function JapanBrandStatsPage({
               variant="outline"
               className="flex items-center gap-2 border-primary text-primary hover:bg-primary/5"
             >
-              <Search className="w-4 h-4" />
-              Ð’ÐµÑ€Ð½ÑƒÑ‚ÑŒÑÑ Ðº Ð¿Ð¾Ð¸ÑÐºÑƒ Ð² ÐºÐ°Ñ‚Ð°Ð»Ð¾Ð³Ðµ
+              <Search className="h-4 w-4" />
+              Вернуться к поиску в каталоге
             </Button>
           </Href>
         </div>
 
         <React.Suspense
           fallback={
-            <div className="flex flex-col gap-8 animate-pulse">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex animate-pulse flex-col gap-8">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-32 bg-card/40 rounded-xl" />
+                  <div key={i} className="h-32 rounded-xl bg-card/40" />
                 ))}
               </div>
-              <div className="h-64 bg-card/40 rounded-xl" />
+              <div className="h-64 rounded-xl bg-card/40" />
             </div>
           }
         >
