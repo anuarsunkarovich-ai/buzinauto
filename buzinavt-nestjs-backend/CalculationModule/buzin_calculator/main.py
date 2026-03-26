@@ -356,7 +356,7 @@ async def search_and_calculate(
             "excise_rub": float(calculation.excise_rub),
             "util_fee_rub": float(calculation.util_fee_rub),
             "company_commission": 0,
-            "exchange_rate": sell_rate,
+            "exchange_rate": buy_rate,
             "rate_source": "ATB Bank",
             "bank_buy_rate": buy_rate,
             "usage_type": calculation.effective_usage_type,
@@ -399,7 +399,7 @@ async def search_and_calculate(
     return {
         "status": "success",
         "results": enriched,
-        "exchange_rate": sell_rate,
+        "exchange_rate": buy_rate,
         "rate_source": "ATB Bank",
         "rate_date": datetime.now().strftime("%d.%m.%Y"),
     }
@@ -441,7 +441,7 @@ async def calculate_total(request: CalculationRequest) -> CalculationResponse:
 
     response = CalculationResponse(
         status="success",
-        exchange_rate=sell_rate,
+        exchange_rate=buy_rate,
         bank_buy_rate=buy_rate,
         rate_date=datetime.now().strftime("%d.%m.%Y"),
         breakdown=CostBreakdown(
@@ -560,7 +560,7 @@ async def auction_stats(
             "grade_distribution": {},
             "popular_modification": "",
             "recent_lots": [],
-            "exchange_rate": sell_rate,
+            "exchange_rate": buy_rate,
             "cached": False,
             "rate_date": datetime.now().strftime("%d.%m.%Y"),
         }
@@ -629,7 +629,7 @@ async def auction_stats(
             mileage=str(c.get("mileage") or ""),
             grade=str(c.get("grade") or c.get("rating") or ""),
             price_jpy=_to_int_price(c.get("price_jpy", 0)),
-            price_rub=round(_to_int_price(c.get("price_jpy", 0)) * sell_rate, 2),
+            price_rub=round(_to_int_price(c.get("price_jpy", 0)) * buy_rate, 2),
             image_url=str(c.get("image_url") or ""),
             auction_date=str(c.get("auction_date") or ""),
             color=str(c.get("color") or ""),
@@ -663,7 +663,7 @@ async def auction_stats(
             dict(lot.model_dump(), price_rub=round(total_rub_list[idx], 2) if idx < len(total_rub_list) else lot.price_rub)
             for idx, lot in enumerate(recent_lots)
         ],
-        "exchange_rate": sell_rate,
+        "exchange_rate": buy_rate,
         "cached": False,
         "rate_date": datetime.now().strftime("%d.%m.%Y"),
     }

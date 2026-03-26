@@ -305,7 +305,7 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
     else:
         japan_expenses_jpy = Decimal("162500")
 
-    auction_rub = quantize_money(_as_decimal(context.price_jpy) * sell_rate)
+    auction_rub = quantize_money(_as_decimal(context.price_jpy) * buy_rate)
     japan_expenses_rub = quantize_money(japan_expenses_jpy * buy_rate)
     customs_duty_core_rub, customs_processing_fee_rub = calculate_customs_duty_rub(
         price_jpy=context.price_jpy,
@@ -356,7 +356,7 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
         company_commission_rub=ZERO,
         duty_buffer_rub=duty_buffer_rub,
         total_rub=total_rub,
-        exchange_rate=sell_rate,
+        exchange_rate=buy_rate,
         effective_user_type=effective_user_type,
         effective_usage_type=effective_usage_type,
         forced_commercial=forced_commercial,

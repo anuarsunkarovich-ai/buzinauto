@@ -384,6 +384,11 @@ export const PriceCalculationModule: React.FC = () => {
               <span className="text-xs text-white/40">
                 {auctionPriceJpy > 0 ? auctionPriceJpy.toLocaleString('ru-RU') + ' ¥' : '—'}
               </span>
+              {result?.bank_buy_rate && (
+                <span className="text-xs text-white/50 mt-1">
+                  Актуальный курс йены банка АТБ{result?.rate_date ? ` на ${result.rate_date}` : ''} составляет: {result.bank_buy_rate}
+                </span>
+              )}
             </div>
             <span className="text-sm font-bold text-white/80 shrink-0 whitespace-nowrap">
               {auctionRub > 0 ? formatMoney(auctionRub) : '—'}
@@ -401,31 +406,6 @@ export const PriceCalculationModule: React.FC = () => {
               'Доставка до Владивостока',
             ]}
           />
-
-          {/* Exchange Rate Info */}
-          {result?.exchange_rate && (
-            <div className="flex flex-col gap-1 py-4 px-4 mb-4 bg-white/5 rounded-lg border border-white/10">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-white/40 uppercase tracking-wider font-medium">Курс JPY/RUB</span>
-                <span className="text-sm font-bold text-white/90">{result.exchange_rate.toFixed(4)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-white/40 uppercase tracking-wider font-medium">Источник</span>
-                <span className="text-xs text-white/60">АТБ Банк</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-white/40 uppercase tracking-wider font-medium">Дата обновления</span>
-                <span className="text-xs text-white/60">{new Date().toLocaleDateString('ru-RU')}</span>
-              </div>
-              {result?.bank_buy_rate && (
-                <div className="pt-2 border-t border-white/10">
-                  <span className="text-xs text-white/60">
-                    Актуальный курс йены банка АТБ{result?.rate_date ? ` на ${result.rate_date}` : ''} составляет: {result.bank_buy_rate}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Customs broker services */}
           <CostRow
