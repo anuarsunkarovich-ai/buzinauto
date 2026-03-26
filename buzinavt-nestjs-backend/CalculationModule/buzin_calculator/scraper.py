@@ -256,9 +256,9 @@ def fetch_atb_jpy_rate() -> dict[str, float]:
             if not code_tag or code_tag.get_text(" ", strip=True).upper() != "JPY":
                 continue
 
-            label = row.select_one("span.currency-table__label")
-            label_text = label.get_text(" ", strip=True) if label else ""
-            denominator = 100.0 if "100" in label_text else 1.0
+            # label = row.select_one("span.currency-table__label")
+            # label_text = label.get_text(" ", strip=True) if label else ""
+            # denominator = 100.0 if "100" in label_text else 1.0
 
             values: dict[str, float] = {}
             for cell in row.select("div.currency-table__td"):
@@ -412,23 +412,31 @@ def fetch_aleado_filters(brand_id: str | None = None) -> list[dict[str, str]]:
         seen: set[tuple[str, str]] = set()
 
         if brand_id:
-            response = _fetch_aleado_page("/autocatalog/", params={"p": "project/models", "mrk": brand_id})
-            soup = BeautifulSoup(response.text, "html.parser")
+            # Use Sajax to load models snippet directly.
+            # loadModels usually takes [makerId, modelId]. -1 means all models.
+            models_html = call_aleado_sajax(
+                "loadModels",
+                [brand_id, "-1"],
+                path="/stats/",
+                base_params={"p": "project/findlots"},
+            )
+            if not models_html:
+                raise RuntimeError("Failed to fetch models via Sajax")
+
+            soup = BeautifulSoup(models_html, "html.parser")
             options.append({"id": "-1", "name": "---Все модели---"})
 
-            for link in soup.find_all("a"):
-                text = link.get_text(" ", strip=True)
-                onclick = link.get("onclick", "") or ""
-                href = link.get("href", "") or ""
-
-                match = re.search(r"startSearch\((\d+)\)", onclick) or re.search(r"[?&]mdl=(\d+)", href)
-                if not match or not text:
+            # Sajax returns a list of options or a select dropdown.
+            # We look for all <option> tags.
+            for item in soup.find_all("option"):
+                value = (item.get("value") or "").strip()
+                text = item.get_text(" ", strip=True)
+                if not value or value == "-1" or not text or text.startswith("---"):
                     continue
 
-                value = match.group(1).strip()
                 clean_text = re.sub(r"\s*\(\d+\)\s*$", "", text).strip()
                 key = (value, clean_text)
-                if not value or not clean_text or key in seen:
+                if key in seen:
                     continue
                 seen.add(key)
                 options.append({"id": value, "name": clean_text})
@@ -545,19 +553,105 @@ def _extract_average_price_args(page_html: str) -> list[str]:
     return args
 
 
-def _decode_sajax_result(response_text: str) -> str:
-    match = re.search(r"var res = '(.*)';\s*res;", response_text, re.S)
-    if not match:
+def decode_sajax_result(response_text: str) -> str:
+    """Decode Sajax response from Aleado.
+    Handles both 'var res = ...' and '+:...' formats.
+    """
+    if not response_text:
         return ""
 
-    payload = match.group(1)
-    return (
-        payload.replace("\\n", "\n")
-        .replace("\\t", "\t")
-        .replace("\\/", "/")
-        .replace('\\"', '"')
-        .replace("\\'", "'")
+    text = response_text.strip()
+
+    # Format 1: +: 'result' or -: 'error'
+    if text.startswith(("+", "-")):
+        status = text[0]
+        # Skip the status and the colon if present
+        data = text[2:].strip() if len(text) > 1 and text[1] == ":" else text[1:].strip()
+        if status == "-":
+            print(f"DEBUG: Aleado Sajax returned error: {data}")
+            return ""
+
+        # If it's a quoted string, unwrap it (basic version of JS eval)
+        if (data.startswith("'") and data.endswith("'")) or (
+            data.startswith('"') and data.endswith('"')
+        ):
+            try:
+                content = data[1:-1]
+                # Sajax escapes / as \/
+                content = content.replace("\\/", "/")
+                # For more complex cases, a proper JS string parser might be needed,
+                # but this usually suffices for Aleado.
+                return content.encode("utf-8").decode("unicode_escape")
+            except Exception:
+                return data[1:-1]
+        return data
+
+    # Format 2: var res = '...'; res;
+    match = re.search(r"var res = '(.*)';\s*res;", response_text, re.S)
+    if match:
+        payload = match.group(1)
+        return (
+            payload.replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\/", "/")
+            .replace('\\"', '"')
+            .replace("\\'", "'")
+        )
+
+    return response_text
+
+
+def call_aleado_sajax(
+    func_name: str,
+    args: list[Any],
+    path: str = "/stats/",
+    method: str = "GET",
+    base_params: dict[str, str] | None = None,
+) -> str:
+    """Emulate Aleado's Sajax mechanism."""
+    # Sajax expects arguments in a specific format in the query string or POST body:
+    # rs=func_name&rsargs[]=arg1&rsargs[]=arg2...
+    params = []
+    if base_params:
+        for k, v in base_params.items():
+            params.append((k, v))
+
+    params.extend(
+        [
+            ("rs", func_name),
+            ("rst", ""),
+            ("rsrnd", str(int(time.time() * 1000))),
+        ]
     )
+
+    for arg in args:
+        params.append(("rsargs[]", str(arg)))
+
+    with _build_aleado_client() as client:
+        _ensure_aleado_session(client)
+
+        url = _absolute_aleado_url(path)
+        try:
+            if method.upper() == "GET":
+                response = client.get(url, params=params)
+            else:
+                response = client.post(url, data=params)
+
+            if response.status_code in {401, 403} or _is_guest_page(
+                response.text, str(response.url)
+            ):
+                _login_aleado(client)
+                if method.upper() == "GET":
+                    response = client.get(url, params=params)
+                else:
+                    response = client.post(url, data=params)
+
+            response.raise_for_status()
+            _cache_aleado_session(client)
+            return decode_sajax_result(response.text)
+        except Exception as exc:
+            print(f"DEBUG: Aleado Sajax call {func_name} failed: {exc}")
+            return ""
 
 
 def _get_lot_cache_key(detail_link: str) -> str:
@@ -716,14 +810,9 @@ def _fetch_newcalc_modifications(model_id: str, year: str) -> list[dict[str, Any
         return cached
 
     try:
-        response = _fetch_aleado_page(
-            "/newcalc",
-            params={
-                "rs": "putModificationsList",
-                "rsargs[]": [model_id, year],
-            },
+        modifications_html = call_aleado_sajax(
+            "putModificationsList", [model_id, year], path="/newcalc"
         )
-        modifications_html = _decode_sajax_result(response.text)
         if not modifications_html:
             _set_cached_payload(_MODIFICATIONS_CACHE, cache_key, [])
             return []
@@ -849,17 +938,7 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
         horsepower = _find_horsepower_from_calc_src(calc_src)
         average_args = _extract_average_price_args(detail_response.text)
         if average_price <= 0 and len(average_args) >= 9:
-            average_response = _fetch_aleado_page(
-                path,
-                params={
-                    **base_params,
-                    "rs": "getAveragePrice",
-                    "rst": "",
-                    "rsrnd": str(int(time.time() * 1000)),
-                    "rsargs[]": average_args,
-                },
-            )
-            average_html = _decode_sajax_result(average_response.text)
+            average_html = call_aleado_sajax("getAveragePrice", average_args, path=path)
             if average_html:
                 soup = BeautifulSoup(average_html, "html.parser")
                 average_node = soup.find(id="average-price-sum")
@@ -948,7 +1027,8 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
         params["body"] = body
 
     try:
-        response = _fetch_aleado_page("/auctions/", params=params)
+        path = "/stats/" if search_type == "stats" else "/auctions/"
+        response = _fetch_aleado_page(path, params=params)
         soup = BeautifulSoup(response.text, "html.parser")
 
         cars: list[dict[str, Any]] = []
