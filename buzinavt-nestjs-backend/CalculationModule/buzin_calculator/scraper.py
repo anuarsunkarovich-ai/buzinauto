@@ -419,6 +419,33 @@ async def fetch_tks_customs_async(
     return await asyncio.to_thread(calculate_customs_phys_person, price_jpy, engine_cc, age, sell_rate)
 
 
+def _fallback_body_options_from_live_search(
+    brand_id: str | None,
+    model_id: str | None,
+) -> list[dict[str, str]]:
+    if not brand_id or not model_id or model_id == "-1":
+        return []
+
+    try:
+        cars = fetch_aleado_data(str(brand_id), str(model_id), search_type="max")
+        options: list[dict[str, str]] = []
+        seen: set[str] = set()
+
+        for car in cars:
+            body = str(car.get("body") or "").strip()
+            normalized = _normalize(body)
+            if not body or body.startswith("---") or not normalized or normalized in seen:
+                continue
+
+            seen.add(normalized)
+            options.append({"id": body, "name": body})
+
+        return options
+    except Exception as exc:
+        print(f"DEBUG: Live-search body fallback failed: {exc}")
+        return []
+
+
 def fetch_aleado_filters(
     brand_id: str | None = None, model_id: str | None = None
 ) -> list[dict[str, str]]:
@@ -445,7 +472,10 @@ def fetch_aleado_filters(
                 base_params={"p": "project/findlots"},
             )
             if not bodies_html:
-                return []
+                fallback_bodies = _fallback_body_options_from_live_search(brand_id, model_id)
+                if fallback_bodies:
+                    _set_cached_filters(cache_key, fallback_bodies)
+                return fallback_bodies
 
             soup = BeautifulSoup(bodies_html, "html.parser")
             for item in soup.find_all("option"):
@@ -458,6 +488,12 @@ def fetch_aleado_filters(
                     continue
                 seen.add(key)
                 options.append({"id": value, "name": text})
+
+            if not options:
+                fallback_bodies = _fallback_body_options_from_live_search(brand_id, model_id)
+                if fallback_bodies:
+                    _set_cached_filters(cache_key, fallback_bodies)
+                return fallback_bodies
 
         elif brand_id:
             # Use Sajax to load models snippet directly.
@@ -509,6 +545,12 @@ def fetch_aleado_filters(
             return options
     except Exception as exc:
         print(f"DEBUG: Aleado filters fetch failed: {exc}")
+
+    if model_id and model_id != "-1":
+        fallback_bodies = _fallback_body_options_from_live_search(brand_id, model_id)
+        if fallback_bodies:
+            _set_cached_filters(cache_key, fallback_bodies)
+        return fallback_bodies
 
     fallback = (
         [

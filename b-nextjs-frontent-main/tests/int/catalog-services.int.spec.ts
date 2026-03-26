@@ -23,7 +23,7 @@ describe('catalog filter helpers', () => {
     expect(
       normalizeModelResponse(
         {
-          results: [{ id: '718', name: 'Prius Alpha' }],
+          results: [{ id: '\\"718', name: 'Prius Alpha' }],
         },
         'TOYOTA',
       ),

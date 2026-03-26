@@ -24,6 +24,8 @@ type UnknownRecord = Record<string, unknown>
 const LOCAL_PAGE_LIMIT = 5000
 
 const normalizeText = (value: unknown) => String(value || '').trim()
+const normalizeIdentifier = (value: unknown) =>
+  normalizeText(value).replace(/\\/g, '').replace(/^['"]+|['"]+$/g, '')
 
 const normalizeCountry = (country?: string) => {
   const value = normalizeText(country).toUpperCase()
@@ -59,7 +61,7 @@ const normalizeBrandEntry = (item: unknown): CatalogBrandOption | null => {
   }
 
   const record = item as UnknownRecord
-  const brand = normalizeText(record.brand ?? record.id ?? record.name)
+  const brand = normalizeIdentifier(record.brand ?? record.id ?? record.name)
   const brandName = normalizeText(record.brandName ?? record.name ?? record.brand ?? record.id)
 
   if (!brand || !brandName) {
@@ -75,8 +77,8 @@ const normalizeModelEntry = (item: unknown, fallbackBrand = ''): CatalogModelOpt
   }
 
   const record = item as UnknownRecord
-  const brand = normalizeText(record.brand ?? fallbackBrand)
-  const model = normalizeText(record.model ?? record.id ?? record.name)
+  const brand = normalizeIdentifier(record.brand ?? fallbackBrand)
+  const model = normalizeIdentifier(record.model ?? record.id ?? record.name)
   const modelDisplay = normalizeText(record.modelDisplay ?? record.name ?? record.model ?? record.id)
   const modelSlug = normalizeText(record.modelSlug ?? toUrlSlug(modelDisplay || model))
 

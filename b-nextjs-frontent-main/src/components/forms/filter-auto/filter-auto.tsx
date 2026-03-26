@@ -171,7 +171,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
   const modelOptions = React.useMemo(
     () =>
       models.map((model) => ({
-        id: model.modelSlug || model.model,
+        id: model.model,
         name: model.modelDisplay || model.model,
         slug: model.modelSlug,
       })),
@@ -189,7 +189,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
         toUrlSlug(model.modelDisplay) === toUrlSlug(selectedModel) ||
         toUrlSlug(model.modelSlug) === toUrlSlug(selectedModel),
     )
-    return match?.modelSlug || match?.model || selectedModel
+    return match?.model || selectedModel
   }, [models, selectedModel])
 
   const { bodyTypes, loading: bodyTypesLoading } = useBodyTypes(
@@ -236,8 +236,8 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
       )
     })
 
-    if (resolvedModel && selectedModel !== resolvedModel.modelSlug) {
-      form.setValue('model', resolvedModel.modelSlug || resolvedModel.model)
+    if (resolvedModel && selectedModel !== resolvedModel.model) {
+      form.setValue('model', resolvedModel.model)
     }
   }, [defaultValues?.model, form, models, selectedModel])
 
@@ -257,7 +257,9 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
 
   const onSubmit = React.useCallback(
     async (values: any) => {
-      const selectedModelOption = models.find((m) => (m.modelSlug || m.model) === values.model)
+      const selectedModelOption = models.find(
+        (m) => m.model === values.model || m.modelSlug === values.model,
+      )
       const country = CountryPathname.find((e) => e.country === values.saleCountry)
       const currency = country?.country === Country.JAPAN ? 'JPY' : 'CNY'
 
@@ -315,7 +317,9 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
 
       if (values.make && values.model && selectedModelOption) {
         const brandMatch = brands.find((brand) => brand.brand === values.make)
-        const modelMatch = models.find((model) => (model.modelSlug || model.model) === values.model)
+        const modelMatch = models.find(
+          (model) => model.model === values.model || model.modelSlug === values.model,
+        )
 
         const makeSlug = toUrlSlug(brandMatch?.brandName || values.make)
         const modelSlug = modelMatch?.modelSlug || toUrlSlug(modelMatch?.modelDisplay || values.model)

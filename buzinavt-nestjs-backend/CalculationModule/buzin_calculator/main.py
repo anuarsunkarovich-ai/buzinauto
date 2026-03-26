@@ -298,6 +298,13 @@ async def search_and_calculate(
             if str(car.get("grade") or car.get("rating") or "").strip().upper()
             <= max_grade.strip().upper()
         ]
+    if body:
+        normalized_body = _normalize_token(body)
+        cars = [
+            car
+            for car in cars
+            if _normalize_token(str(car.get("body") or "")) == normalized_body
+        ]
     if min_year is not None:
         cars = [car for car in cars if _safe_number(car.get("year")) >= min_year]
     if max_year is not None:
@@ -597,6 +604,18 @@ async def auction_stats(
         search_type="stats",
         body=str(body or ""),
     )
+    if not cars:
+        print(
+            f"DEBUG: Stats search returned 0 rows for {resolved_brand}/{resolved_model}. "
+            "Retrying with live search fallback."
+        )
+        cars = await asyncio.to_thread(
+            fetch_aleado_data,
+            resolved_brand,
+            resolved_model,
+            search_type="max",
+            body="",
+        )
 
     # ── Apply Filtering ───────────────────────────────────────────────────────
     def _to_int_price(v) -> int:
