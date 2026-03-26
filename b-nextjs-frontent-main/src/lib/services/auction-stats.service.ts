@@ -1,4 +1,5 @@
 import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
+import { searchCars, type FastApiSearchCar } from '@/lib/services/auction.service'
 
 export type AuctionStatsResponse = {
   status: string
@@ -44,6 +45,103 @@ export type AuctionStatsFilters = {
   minGrade?: string
   maxGrade?: string
   body?: string
+}
+
+const toNumber = (value: string | number | undefined | null) => {
+  const numeric = Number(String(value ?? '').replace(/[^\d.]+/g, ''))
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+const pickPriceJpy = (car: FastApiSearchCar) =>
+  toNumber(car.calculation_price_jpy ?? car.average_price_jpy ?? car.price_jpy)
+
+const pickPriceRub = (car: FastApiSearchCar, exchangeRate: number) =>
+  toNumber(car.total_rub ?? car.price_details?.total_rub) || Math.round(pickPriceJpy(car) * exchangeRate)
+
+export const buildAuctionStatsFallbackFromSearchResults = (
+  cars: FastApiSearchCar[],
+  brand: string,
+  model?: string,
+  exchangeRate = 0,
+): AuctionStatsResponse | null => {
+  const priced = cars
+    .map((car) => ({
+      car,
+      priceJpy: pickPriceJpy(car),
+      priceRub: pickPriceRub(car, exchangeRate),
+    }))
+    .filter((entry) => entry.priceJpy > 0)
+
+  if (priced.length === 0) {
+    return null
+  }
+
+  const pricesJpy = priced.map((entry) => entry.priceJpy)
+  const pricesRub = priced.map((entry) => entry.priceRub)
+  const gradeDistribution = priced.reduce<Record<string, number>>((acc, entry) => {
+    const grade = String(entry.car.grade || entry.car.rating || '').trim()
+    if (grade) {
+      acc[grade] = (acc[grade] || 0) + 1
+    }
+    return acc
+  }, {})
+
+  const modificationCounts = priced.reduce<Record<string, number>>((acc, entry) => {
+    const modification = String(entry.car.modification || entry.car.model_code || '').trim()
+    if (modification) {
+      acc[modification] = (acc[modification] || 0) + 1
+    }
+    return acc
+  }, {})
+
+  const popularModification =
+    Object.entries(modificationCounts).sort((left, right) => right[1] - left[1])[0]?.[0] || ''
+
+  const recentLots = priced
+    .slice()
+    .sort((left, right) => String(right.car.auction_date || '').localeCompare(String(left.car.auction_date || '')))
+    .slice(0, 20)
+    .map(({ car, priceJpy, priceRub }) => ({
+      lot: String(car.lot || ''),
+      brand: String(car.brand || brand).trim(),
+      model: String(car.model || model || '').trim(),
+      year: String(car.year || ''),
+      engine_cc: String(car.engine_cc || ''),
+      horsepower: toNumber(car.horsepower),
+      mileage: String(car.mileage || ''),
+      grade: String(car.grade || car.rating || '').trim(),
+      price_jpy: priceJpy,
+      price_rub: priceRub,
+      image_url: String(car.image_url || car.image_urls?.[0] || ''),
+      auction_date: String(car.auction_date || ''),
+      color: String(car.color || ''),
+      transmission: String(car.transmission || ''),
+      body: String(car.body || car.model_code || ''),
+    }))
+
+  const firstCar = priced[0]?.car
+
+  return {
+    status: 'success',
+    brand: String(firstCar?.brand || brand).trim(),
+    model: String(firstCar?.model || model || '').trim(),
+    total_lots: priced.length,
+    avg_price_jpy: Math.round(pricesJpy.reduce((sum, value) => sum + value, 0) / priced.length),
+    avg_price_rub: Number(
+      (pricesRub.reduce((sum, value) => sum + value, 0) / priced.length).toFixed(2),
+    ),
+    price_range: {
+      min_jpy: Math.min(...pricesJpy),
+      max_jpy: Math.max(...pricesJpy),
+      min_rub: Number(Math.min(...pricesRub).toFixed(2)),
+      max_rub: Number(Math.max(...pricesRub).toFixed(2)),
+    },
+    grade_distribution: gradeDistribution,
+    popular_modification: popularModification,
+    recent_lots: recentLots,
+    exchange_rate: exchangeRate,
+    cached: false,
+  }
 }
 
 export const buildAuctionStatsUrl = (
@@ -98,8 +196,32 @@ export const getAuctionStats = async (
       },
       next: { revalidate: 3600 },
     })
-    if (!response.ok) return null
-    return (await response.json()) as AuctionStatsResponse
+    if (response.ok) {
+      const stats = (await response.json()) as AuctionStatsResponse
+      if (stats.total_lots > 0) {
+        return stats
+      }
+    }
+
+    const searchResponse = await searchCars({
+      brand,
+      model,
+      body: filters?.body,
+      minGrade: filters?.minGrade,
+      maxGrade: filters?.maxGrade,
+      minYear: filters?.minYear,
+      maxYear: filters?.maxYear,
+      minMileageKm: filters?.minMileageKm,
+      maxMileageKm: filters?.maxMileageKm,
+      limit: 200,
+    })
+
+    return buildAuctionStatsFallbackFromSearchResults(
+      searchResponse.results,
+      brand,
+      model,
+      searchResponse.exchange_rate || 0,
+    )
   } catch (error) {
     console.error('getAuctionStats error:', error)
     return null

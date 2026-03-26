@@ -4,6 +4,7 @@ import { fetchCatalogBodies } from '@/lib/services/catalog-filters.service'
 
 export type BodyType = {
   body: string
+  label?: string
   count?: number
 }
 

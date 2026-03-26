@@ -5,7 +5,10 @@ import {
   normalizeBrandResponse,
   normalizeModelResponse,
 } from '@/lib/services/catalog-filters.service'
-import { buildAuctionStatsUrl } from '@/lib/services/auction-stats.service'
+import {
+  buildAuctionStatsFallbackFromSearchResults,
+  buildAuctionStatsUrl,
+} from '@/lib/services/auction-stats.service'
 
 describe('catalog filter helpers', () => {
   it('normalizes local brand payloads', () => {
@@ -45,7 +48,7 @@ describe('catalog filter helpers', () => {
           { id: '1', name: 'ZVW41' },
         ],
       }),
-    ).toEqual([{ body: 'ZVW41' }])
+    ).toEqual([{ body: 'ZVW41', label: 'ZVW41', count: undefined }])
   })
 })
 
@@ -72,5 +75,52 @@ describe('auction stats URL builder', () => {
     expect(url.searchParams.get('max_grade')).toBe('5')
     expect(url.searchParams.get('body')).toBe('ZVW41')
     expect(url.searchParams.get('rating')).toBeNull()
+  })
+
+  it('builds stats from search results when the stats endpoint is empty', () => {
+    const stats = buildAuctionStatsFallbackFromSearchResults(
+      [
+        {
+          lot: '1',
+          brand: 'HONDA',
+          model: 'CIVIC',
+          grade: '4',
+          price_jpy: '1200000',
+          total_rub: 950000,
+          auction_date: '2026-03-26 10:00',
+          body: 'TYPE R',
+          model_code: 'FL5',
+          transmission: 'MT',
+          color: 'White',
+          year: '2023',
+          engine_cc: '2000',
+        },
+        {
+          lot: '2',
+          brand: 'HONDA',
+          model: 'CIVIC',
+          grade: '4.5',
+          price_jpy: '1800000',
+          total_rub: 1350000,
+          auction_date: '2026-03-27 10:00',
+          body: 'RS',
+          model_code: 'FL1',
+          transmission: 'AT',
+          color: 'Black',
+          year: '2024',
+          engine_cc: '1500',
+        },
+      ],
+      'honda',
+      'civic',
+      0.49,
+    )
+
+    expect(stats).not.toBeNull()
+    expect(stats?.total_lots).toBe(2)
+    expect(stats?.avg_price_jpy).toBe(1500000)
+    expect(stats?.price_range.min_jpy).toBe(1200000)
+    expect(stats?.price_range.max_jpy).toBe(1800000)
+    expect(stats?.recent_lots[0]?.lot).toBe('2')
   })
 })

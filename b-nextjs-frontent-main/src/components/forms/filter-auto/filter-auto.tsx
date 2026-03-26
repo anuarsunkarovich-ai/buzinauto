@@ -203,7 +203,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
     () =>
       bodyTypes.map((bodyType: any) => ({
         id: bodyType.body,
-        name: bodyType.body,
+        name: bodyType.label || bodyType.body,
       })),
     [bodyTypes],
   )
@@ -512,15 +512,15 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
           name="body"
           render={({ field }) => (
             <FormItem className="col-span-2 md:col-span-1">
-              <FormLabel>Модель кузова</FormLabel>
+              <FormLabel>Кузов / код</FormLabel>
               <FormControl>
                 <Combobox
                   className="select-none"
                   options={bodyOptions}
                   valueKey="id"
                   labelKey="name"
-                  placeholder={!selectedModel ? 'Сначала выберите модель' : 'Код кузова...'}
-                  searchPlaceholder="Найти код кузова..."
+                  placeholder={!selectedModel ? 'Сначала выберите модель' : 'Кузов или код...'}
+                  searchPlaceholder="Найти кузов или код..."
                   emptyMessage={
                     !selectedModel
                       ? 'Сначала выберите модель'

@@ -25,7 +25,16 @@ export const AuctionAnalyticsBlock = async ({
   }
 }) => {
   const stats = await getAuctionStats(brand, model, filters)
-  if (!stats || stats.total_lots === 0) return null
+  if (!stats || stats.total_lots === 0) {
+    return (
+      <Card className="border-border/60 bg-card/70">
+        <CardContent className="py-10 text-center text-muted-foreground">
+          No completed auction lots matched the current filters yet. Try broadening the filters or
+          opening the live catalog view for the latest offers.
+        </CardContent>
+      </Card>
+    )
+  }
 
   const chartData = stats.recent_lots
     .slice(0, 20)

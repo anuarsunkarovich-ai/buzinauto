@@ -72,6 +72,25 @@ const normalizeSearchValue = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '')
 
+const matchesBodyQuery = (car: FastApiSearchCar, bodyQuery: string) => {
+  const normalizedQuery = normalizeSearchValue(bodyQuery)
+
+  if (!normalizedQuery) {
+    return true
+  }
+
+  const candidates = [car.body, car.model_code, car.modification]
+
+  return candidates.some((candidate) => {
+    const normalizedCandidate = normalizeSearchValue(String(candidate || ''))
+    return (
+      normalizedCandidate === normalizedQuery ||
+      normalizedCandidate.includes(normalizedQuery) ||
+      normalizedQuery.includes(normalizedCandidate)
+    )
+  })
+}
+
 const matchesModelQuery = (car: FastApiSearchCar, modelQuery: string) => {
   const normalizedQuery = normalizeSearchValue(modelQuery)
 
@@ -170,21 +189,6 @@ const buildSearchUrl = (
   return url
 }
 
-const fetchSearchResults = async (url: URL) => {
-  const response = await fetch(url.toString(), {
-    headers: {
-      'ngrok-skip-browser-warning': 'true',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`FastAPI search failed with status ${response.status}`)
-  }
-
-  const data = (await response.json()) as FastApiSearchResponse
-  return data.results || []
-}
-
 export const searchCars = async ({
   brand,
   model,
@@ -240,8 +244,13 @@ export const searchCars = async ({
   }
 
   const data = await response.json()
+  const rawResults = (data.results || []) as FastApiSearchCar[]
+  const normalizedResults = rawResults
+    .filter((car) => (model ? matchesModelQuery(car, model) : true))
+    .filter((car) => (body ? matchesBodyQuery(car, body) : true))
+
   return {
-    results: data.results || [],
+    results: normalizedResults,
     exchange_rate: data.exchange_rate,
     rate_source: data.rate_source,
     rate_date: data.rate_date,

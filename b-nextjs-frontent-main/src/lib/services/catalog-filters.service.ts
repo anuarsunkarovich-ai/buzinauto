@@ -16,6 +16,7 @@ export type CatalogModelOption = {
 
 export type CatalogBodyOption = {
   body: string
+  label?: string
   count?: number
 }
 
@@ -101,10 +102,59 @@ const normalizeBodyEntry = (item: unknown): CatalogBodyOption | null => {
   }
 
   const count = Number(record.count)
+  const label = normalizeText(record.label ?? record.display ?? body)
   return {
     body,
+    label: label || body,
     count: Number.isFinite(count) && count > 0 ? count : undefined,
   }
+}
+
+const buildSearchFallbackBodies = (payload: unknown): CatalogBodyOption[] => {
+  if (!payload || typeof payload !== 'object') {
+    return []
+  }
+
+  const record = payload as UnknownRecord
+  const results = Array.isArray(record.results) ? record.results : []
+  const grouped = new Map<string, CatalogBodyOption>()
+
+  for (const item of results) {
+    if (!item || typeof item !== 'object') {
+      continue
+    }
+
+    const entry = item as UnknownRecord
+    const body = normalizeText(entry.body)
+    const modelCode = normalizeIdentifier(entry.model_code)
+    if (!body) {
+      continue
+    }
+
+    const key = toUrlSlug(body)
+    const existing = grouped.get(key)
+    const label = [modelCode, body].filter(Boolean).join(' ').trim() || body
+
+    if (existing) {
+      existing.count = (existing.count || 0) + 1
+      continue
+    }
+
+    grouped.set(key, {
+      body,
+      label,
+      count: 1,
+    })
+  }
+
+  return Array.from(grouped.values()).sort((left, right) => {
+    const countDiff = (right.count || 0) - (left.count || 0)
+    if (countDiff !== 0) {
+      return countDiff
+    }
+
+    return left.label?.localeCompare(right.label || '', 'ru') || 0
+  })
 }
 
 const dedupeBy = <T>(items: T[], getKey: (item: T) => string) => {
@@ -290,6 +340,21 @@ export const fetchCatalogBodies = async (
   const baseUrl = getRuntimeBackendApiUrl()
   if (!baseUrl) {
     return []
+  }
+
+  try {
+    const url = new URL(`${baseUrl.replace(/\/$/, '')}/search`)
+    url.searchParams.set('brand', brand)
+    url.searchParams.set('model', model)
+    url.searchParams.set('limit', '200')
+
+    const payload = await fetchJson(url.toString())
+    const bodies = buildSearchFallbackBodies(payload)
+    if (bodies.length > 0) {
+      return bodies
+    }
+  } catch (error) {
+    console.error('fetchCatalogBodies search fallback error:', error)
   }
 
   const url = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
