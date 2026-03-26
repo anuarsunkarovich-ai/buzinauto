@@ -198,7 +198,9 @@ STATS_CACHE_TTL = 8 * 3600  # 8 hours
 @app.get("/api/v1/rate", response_model=RateResponse)
 def get_exchange_rate() -> RateResponse:
     rates = fetch_atb_jpy_rate()
-    return RateResponse(rate=rates["buy"], source="ATB Bank", date=datetime.now().strftime("%d.%m.%Y"))
+    return RateResponse(
+        rate=rates["buy"], source="ATB Bank", date=datetime.now().strftime("%d.%m.%Y")
+    )
 
 
 @app.get("/api/v1/rate/v6/{api_key}/latest/RUB")
@@ -247,6 +249,7 @@ async def search_and_calculate(
     min_price_rub: float | None = None,
     max_price_rub: float | None = None,
     usage_type: str = "private",
+    limit: int | None = Query(None, description="Max number of cars to return"),
 ):
     rates = fetch_atb_jpy_rate()
     sell_rate = rates["sell"]
@@ -260,8 +263,15 @@ async def search_and_calculate(
     if not model_matched:
         print("DEBUG: Model not matched; using brand-only scrape for broader results")
     brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
-    cars = await asyncio.to_thread(fetch_aleado_data, resolved_brand, resolved_model, search_type="max", body=str(body or ""))
+    cars = await asyncio.to_thread(
+        fetch_aleado_data,
+        resolved_brand,
+        resolved_model,
+        search_type="max",
+        body=str(body or ""),
+    )
 
+    # ── Apply Filters ────────────────────────────────────────────────────────
     if auction_date:
         cars = [
             car
@@ -306,98 +316,133 @@ async def search_and_calculate(
             car for car in cars if _safe_number(car.get("engine_cc")) <= max_engine_cc
         ]
 
-    async def enrich_car(car: dict, sell_rate: float, buy_rate: float, eur_rate: float) -> dict:
-        current_year = date.today().year
-        car_year = int(car["year"]) if str(car["year"]).isdigit() else current_year - 4
-        age = current_year - car_year
-        age_cat = get_age_category_from_years(age)
-        lot_price_jpy = int(car["price_jpy"] or 0)
-        engine_cc = int(car["engine_cc"]) if car["engine_cc"] else 1500
-        # Enrich from lot detail page: real horsepower, full image set, average price
-        details = await asyncio.to_thread(
-            fetch_aleado_lot_details, str(car.get("detail_link") or "")
-        )
-        detail_hp = int(_safe_number(details.get("horsepower"))) if details.get("horsepower") else 0
-        horsepower = (
-            detail_hp
-            or (int(_safe_number(car.get("horsepower"))) if car.get("horsepower") else 0)
-        )
-        if horsepower <= 0:
-            horsepower = estimate_horsepower(engine_cc)
+    # Limit the number of cars BEFORE enrichment to avoid excessive network calls
+    if limit and limit > 0:
+        cars = cars[:limit]
+    else:
+        # Default safety limit if not specified
+        cars = cars[:50]
 
-        average_price_jpy = int(details.get("average_price_jpy") or 0)
-        calculation_price_jpy = average_price_jpy or lot_price_jpy
+    # Use a semaphore to limit concurrent network requests to Aleado
+    semaphore = asyncio.Semaphore(10)
 
-        # Prefer detail images if available
-        image_urls = details.get("image_urls") or car.get("image_urls") or []
-        car["image_urls"] = image_urls
-        car["image_url"] = details.get("image_url") or (image_urls[0] if image_urls else car.get("image_url", ""))
-        car["auction_sheet_url"] = details.get("auction_sheet_url") or car.get("auction_sheet_url", "")
-        calculation = run_total_calculation(
-            CalculationContext(
-                price_jpy=calculation_price_jpy,
-                engine_volume=engine_cc,
-                horsepower=horsepower,
-                age_category=age_cat,
-                sell_rate=sell_rate,
-                buy_rate=buy_rate,
-                eur_rate=eur_rate,
-                usage_type=usage_type,
-                user_type="individual",
-                engine_type=str(car.get("engine_type") or "gasoline"),
-                year=current_year,
-            )
-        )
+    async def enrich_car(
+        car: dict, sell_rate: float, buy_rate: float, eur_rate: float
+    ) -> dict:
+        async with semaphore:
+            try:
+                # ... check cache etc. inside enrichment
+                current_year = date.today().year
+                car_year = (
+                    int(car["year"]) if str(car["year"]).isdigit() else current_year - 4
+                )
+                age = current_year - car_year
+                age_cat = get_age_category_from_years(age)
+                lot_price_jpy = int(_safe_number(car.get("price_jpy") or 0))
+                engine_cc = int(_safe_number(car.get("engine_cc") or 1500))
 
-        car["average_price_jpy"] = str(average_price_jpy) if average_price_jpy > 0 else ""
-        car["calculation_price_jpy"] = str(calculation_price_jpy)
-        car["price_source"] = "average" if average_price_jpy > 0 else "lot"
-        car["horsepower"] = horsepower
+                # Enrich from lot detail page
+                details = await asyncio.to_thread(
+                    fetch_aleado_lot_details, str(car.get("detail_link") or "")
+                )
+                detail_hp = (
+                    int(_safe_number(details.get("horsepower")))
+                    if details.get("horsepower")
+                    else 0
+                )
+                horsepower = detail_hp or int(_safe_number(car.get("horsepower") or 0))
+                if horsepower <= 0:
+                    horsepower = estimate_horsepower(engine_cc)
 
-        car["price_details"] = {
-            "car_price_rub": float(calculation.auction_rub),
-            "car_price_jpy": calculation_price_jpy,
-            "lot_price_jpy": lot_price_jpy,
-            "average_price_jpy": average_price_jpy,
-            "buy_and_delivery_rub": float(calculation.japan_expenses_rub),
-            "customs_broker_rub": float(CUSTOMS_BROKER_RUB),
-            "customs_duty_rub": float(calculation.customs_duty_rub),
-            "customs_processing_fee_rub": float(calculation.customs_processing_fee_rub),
-            "excise_rub": float(calculation.excise_rub),
-            "util_fee_rub": float(calculation.util_fee_rub),
-            "company_commission": 0,
-            "exchange_rate": buy_rate,
-            "rate_source": "ATB Bank",
-            "bank_buy_rate": buy_rate,
-            "usage_type": calculation.effective_usage_type,
-            "user_type": calculation.effective_user_type,
-            "forced_commercial": calculation.forced_commercial,
-        }
-        car["brand"] = car.get("brand") or brand_name
-        car["model"] = car.get("model") or model_name
-        car["modelDisplay"] = (
-            car.get("modelDisplay")
-            or " ".join(
-                part
-                for part in [
-                    car.get("brand"),
-                    car.get("model"),
-                    car.get("model_code"),
-                    car.get("body"),
-                ]
-                if part
-            ).strip()
-        )
-        car["modelSlug"] = car.get("modelSlug") or car["model"].lower().replace(
-            " ", "-"
-        )
-        car["saleCountry"] = car.get("saleCountry") or "JAPAN"
-        car["total_rub"] = float(calculation.total_rub)
-        return car
+                average_price_jpy = int(
+                    _safe_number(details.get("average_price_jpy") or 0)
+                )
+                calculation_price_jpy = average_price_jpy or lot_price_jpy
 
-    enriched = await asyncio.gather(
-        *(enrich_car(car, sell_rate, buy_rate, eur_rate) for car in cars)
+                # Prefer detail images if available
+                image_urls = details.get("image_urls") or car.get("image_urls") or []
+                car["image_urls"] = image_urls
+                car["image_url"] = details.get("image_url") or (
+                    image_urls[0] if image_urls else car.get("image_url", "")
+                )
+                car["auction_sheet_url"] = details.get("auction_sheet_url") or car.get(
+                    "auction_sheet_url", ""
+                )
+
+                calculation = run_total_calculation(
+                    CalculationContext(
+                        price_jpy=calculation_price_jpy,
+                        engine_volume=engine_cc,
+                        horsepower=horsepower,
+                        age_category=age_cat,
+                        sell_rate=sell_rate,
+                        buy_rate=buy_rate,
+                        eur_rate=eur_rate,
+                        usage_type=usage_type,
+                        user_type="individual",
+                        engine_type=str(car.get("engine_type") or "gasoline"),
+                        year=current_year,
+                    )
+                )
+
+                car["average_price_jpy"] = (
+                    str(average_price_jpy) if average_price_jpy > 0 else ""
+                )
+                car["calculation_price_jpy"] = str(calculation_price_jpy)
+                car["price_source"] = "average" if average_price_jpy > 0 else "lot"
+                car["horsepower"] = horsepower
+
+                car["price_details"] = {
+                    "car_price_rub": float(calculation.auction_rub),
+                    "car_price_jpy": calculation_price_jpy,
+                    "lot_price_jpy": lot_price_jpy,
+                    "average_price_jpy": average_price_jpy,
+                    "buy_and_delivery_rub": float(calculation.japan_expenses_rub),
+                    "customs_broker_rub": float(CUSTOMS_BROKER_RUB),
+                    "customs_duty_rub": float(calculation.customs_duty_rub),
+                    "customs_processing_fee_rub": float(
+                        calculation.customs_processing_fee_rub
+                    ),
+                    "excise_rub": float(calculation.excise_rub),
+                    "util_fee_rub": float(calculation.util_fee_rub),
+                    "company_commission": 0,
+                    "exchange_rate": buy_rate,
+                    "rate_source": "ATB Bank",
+                    "bank_buy_rate": buy_rate,
+                    "usage_type": calculation.effective_usage_type,
+                    "user_type": calculation.effective_user_type,
+                    "forced_commercial": calculation.forced_commercial,
+                }
+                car["brand"] = car.get("brand") or brand_name
+                car["model"] = car.get("model") or model_name
+                car["modelDisplay"] = (
+                    car.get("modelDisplay")
+                    or " ".join(
+                        part
+                        for part in [
+                            car.get("brand"),
+                            car.get("model"),
+                            car.get("model_code"),
+                            car.get("body"),
+                        ]
+                        if part
+                    ).strip()
+                )
+                car["modelSlug"] = car.get("modelSlug") or car["model"].lower().replace(
+                    " ", "-"
+                )
+                car["saleCountry"] = car.get("saleCountry") or "JAPAN"
+                car["total_rub"] = float(calculation.total_rub)
+                return car
+            except Exception as exc:
+                print(f"DEBUG: Failed to enrich car {car.get('lot')}: {exc}")
+                return car
+
+    enriched_results = await asyncio.gather(
+        *(enrich_car(car, sell_rate, buy_rate, eur_rate) for car in cars),
+        return_exceptions=True,
     )
+    enriched = [c for c in enriched_results if isinstance(c, dict)]
     if min_price_rub is not None:
         enriched = [
             car for car in enriched if float(car.get("total_rub") or 0) >= min_price_rub
@@ -417,11 +462,28 @@ async def search_and_calculate(
 
 @app.get("/api/v1/auction/filters")
 def get_auction_filters(
-    brand_id: str = Query(None, description="Brand ID to fetch models for"),
-    model_id: str = Query(None, description="Model ID to fetch body types for"),
+    brand_id: str = Query(None, description="Brand ID or Name to fetch models for"),
+    model_id: str = Query(None, description="Model ID or Name to fetch body types for"),
 ):
     try:
-        data = fetch_aleado_filters(brand_id, model_id)
+        # Resolve potentially passed names/slugs to Aleado IDs
+        brand = brand_id or ""
+        model = model_id or ""
+        res_brand, res_model, _ = resolve_aleado_ids(brand, model)
+        
+        # If we were looking for models for a brand
+        if brand and not model:
+            target_brand = res_brand
+            target_model = None
+        # If we were looking for bodies for a model
+        elif model:
+            target_brand = res_brand
+            target_model = res_model
+        else:
+            target_brand = None
+            target_model = None
+
+        data = fetch_aleado_filters(target_brand, target_model)
         return {"status": "success", "results": data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -506,7 +568,7 @@ async def auction_stats(
     # ── Create unique cache key for current filter set ────────────────────────
     filters_str = f"mil_{min_mileage_km}-{max_mileage_km}yr_{min_year}-{max_year}grade_{min_grade}-{max_grade}_body_{body}"
     cache_key = f"{brand}::{model}::{filters_str}"
-    
+
     cached = _STATS_CACHE.get(cache_key)
     if cached and time.time() - cached["ts"] < 3600:
         payload = cached["data"]
@@ -522,7 +584,13 @@ async def auction_stats(
     sell_rate = rates["sell"]
     buy_rate = rates["buy"]
 
-    cars = await asyncio.to_thread(fetch_aleado_data, resolved_brand, resolved_model, search_type="stats", body=str(body or ""))
+    cars = await asyncio.to_thread(
+        fetch_aleado_data,
+        resolved_brand,
+        resolved_model,
+        search_type="stats",
+        body=str(body or ""),
+    )
 
     # ── Apply Filtering ───────────────────────────────────────────────────────
     def _to_int_price(v) -> int:
@@ -555,7 +623,9 @@ async def auction_stats(
         ]
     if body:
         norm_body = _normalize_token(body)
-        cars = [c for c in cars if _normalize_token(str(c.get("body") or "")) == norm_body]
+        cars = [
+            c for c in cars if _normalize_token(str(c.get("body") or "")) == norm_body
+        ]
 
     priced = [c for c in cars if _to_int_price(c.get("price_jpy", 0)) > 0]
 
@@ -615,14 +685,23 @@ async def auction_stats(
     avg_jpy = int(sum(prices_jpy) / len(prices_jpy))
     min_jpy = min(prices_jpy)
     max_jpy = max(prices_jpy)
-    grade_dist = dict(Counter(str(c.get("grade") or c.get("rating", "")).strip() for c in priced if (c.get("grade") or c.get("rating"))))
-    
-    modifications = [str(c.get("modification") or c.get("model_code", "")).strip() for c in priced]
+    grade_dist = dict(
+        Counter(
+            str(c.get("grade") or c.get("rating", "")).strip()
+            for c in priced
+            if (c.get("grade") or c.get("rating"))
+        )
+    )
+
+    modifications = [
+        str(c.get("modification") or c.get("model_code", "")).strip() for c in priced
+    ]
     popular_mod = Counter(m for m in modifications if m).most_common(1)
     popular_modification = popular_mod[0][0] if popular_mod else ""
 
     def _sort_key(c: dict) -> str:
         return str(c.get("auction_date") or "")
+
     sorted_cars = sorted(priced, key=_sort_key, reverse=True)[:20]
 
     recent_lots = [
@@ -650,7 +729,9 @@ async def auction_stats(
         for c in sorted_cars
     ]
 
-    avg_total_rub = round(sum(total_rub_list) / len(total_rub_list), 2) if total_rub_list else 0.0
+    avg_total_rub = (
+        round(sum(total_rub_list) / len(total_rub_list), 2) if total_rub_list else 0.0
+    )
     min_total_rub = round(min(total_rub_list), 2) if total_rub_list else 0.0
     max_total_rub = round(max(total_rub_list), 2) if total_rub_list else 0.0
 
@@ -671,7 +752,12 @@ async def auction_stats(
         "popular_modification": popular_modification,
         # Replace price_rub for recent lots with calculated total_rub when available
         "recent_lots": [
-            dict(lot.model_dump(), price_rub=round(total_rub_list[idx], 2) if idx < len(total_rub_list) else lot.price_rub)
+            dict(
+                lot.model_dump(),
+                price_rub=round(total_rub_list[idx], 2)
+                if idx < len(total_rub_list)
+                else lot.price_rub,
+            )
             for idx, lot in enumerate(recent_lots)
         ],
         "exchange_rate": buy_rate,

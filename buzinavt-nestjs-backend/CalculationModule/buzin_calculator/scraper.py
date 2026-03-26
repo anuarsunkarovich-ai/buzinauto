@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 import re
 import time
@@ -29,8 +30,8 @@ ALEADO_PASSWORD = os.getenv("ALEADO_PASSWORD", "Anuar1234")
 ALEADO_SESSION_TTL_SECONDS = 30 * 60
 FILTER_CACHE_TTL_SECONDS = 30 * 60
 AVERAGE_PRICE_CACHE_TTL_SECONDS = 30 * 60
-LOT_DETAILS_CACHE_TTL_SECONDS = 30 * 60
-MODIFICATIONS_CACHE_TTL_SECONDS = 6 * 3600
+LOT_DETAILS_CACHE_TTL_SECONDS = 24 * 3600  # Increase to 24h
+MODIFICATIONS_CACHE_TTL_SECONDS = 24 * 3600
 
 ALEADO_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -130,12 +131,22 @@ def _set_cached_payload(
     cache[cache_key] = {"data": data, "timestamp": time.time()}
 
 
+# Single persistent client for connection pooling
+_ALEADO_CLIENT = httpx.Client(headers=ALEADO_HEADERS, follow_redirects=True, timeout=30.0)
+
+
 def _build_aleado_client() -> httpx.Client:
-    client = httpx.Client(headers=ALEADO_HEADERS, follow_redirects=True, timeout=30.0)
+    """Return the shared Aleado client with current session cookies."""
     cached_cookies = _ALEADO_SESSION_CACHE.get("cookies")
-    if cached_cookies and time.time() - _ALEADO_SESSION_CACHE["timestamp"] < ALEADO_SESSION_TTL_SECONDS:
-        client.cookies.update(cached_cookies)
-    return client
+    if cached_cookies and (time.time() - _ALEADO_SESSION_CACHE["timestamp"] < ALEADO_SESSION_TTL_SECONDS):
+        _ALEADO_CLIENT.cookies.update(cached_cookies)
+    return _ALEADO_CLIENT
+
+
+@contextlib.contextmanager
+def _aleado_session_context():
+    """Dummy context manager to maintain compatibility with existing 'with' usage."""
+    yield _build_aleado_client()
 
 
 def _flatten_client_cookies(client: httpx.Client) -> dict[str, str]:
@@ -209,7 +220,7 @@ def _ensure_aleado_session(client: httpx.Client) -> None:
 
 
 def _fetch_aleado_page(path: str, params: dict[str, Any] | None = None) -> httpx.Response:
-    with _build_aleado_client() as client:
+    with _aleado_session_context() as client:
         _ensure_aleado_session(client)
 
         response = client.get(_absolute_aleado_url(path), params=params)
@@ -433,7 +444,7 @@ def fetch_aleado_filters(
 
             soup = BeautifulSoup(bodies_html, "html.parser")
             for item in soup.find_all("option"):
-                value = (item.get("value") or "").strip()
+                value = (item.get("value") or "").strip().strip('"').strip("'")
                 text = item.get_text(" ", strip=True)
                 if not value or value == "-1" or not text or text.startswith("---"):
                     continue
@@ -458,7 +469,7 @@ def fetch_aleado_filters(
             options.append({"id": "-1", "name": "---Все модели---"})
 
             for item in soup.find_all("option"):
-                value = (item.get("value") or "").strip()
+                value = (item.get("value") or "").strip().strip('"').strip("'")
                 text = item.get_text(" ", strip=True)
                 if not value or value == "-1" or not text or text.startswith("---"):
                     continue
@@ -478,7 +489,7 @@ def fetch_aleado_filters(
             select = soup.find("select", attrs={"name": "mrk"})
             if select:
                 for option in select.find_all("option"):
-                    value = (option.get("value") or "").strip()
+                    value = (option.get("value") or "").strip().strip('"').strip("'")
                     text = option.get_text(" ", strip=True)
                     if not value or value == "-1" or not text or text.startswith("---"):
                         continue
@@ -656,7 +667,7 @@ def call_aleado_sajax(
     for arg in args:
         params.append(("rsargs[]", str(arg)))
 
-    with _build_aleado_client() as client:
+    with _aleado_session_context() as client:
         _ensure_aleado_session(client)
 
         url = _absolute_aleado_url(path)

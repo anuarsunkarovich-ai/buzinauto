@@ -30,52 +30,33 @@ export const useBodyTypes = (
       setError(null)
 
       try {
-        // Use the existing search API to get cars and extract model codes (кузов)
-        const response = await searchCars({
-          brand,
-          model,
-          limit: 300, // Increased limit to find more unique body codes
+        const baseUrl = getRuntimeBackendApiUrl()
+        if (!baseUrl) return
+
+        const url = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
+        url.searchParams.set('brand_id', brand)
+        url.searchParams.set('model_id', model)
+
+        const response = await fetch(url.toString(), {
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
         })
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch bodies: ${response.status}`)
+        }
 
-        // Extract unique model codes (кузов) from the results
-        const bodyCounts = new Map<string, number>()
-        // Improved regex for chassis codes: 1-3 letters followed by a number and 0-3 alphanumeric chars
-        const codeRegex = /\b[A-Z]{1,3}[0-9][A-Z0-9]{0,3}\b/g 
-
-        response.results.forEach((car) => {
-          const possibleCodes = new Set<string>()
-          
-          // 1. Check model_code field (primary source)
-          if (car.model_code) {
-            const code = car.model_code.toUpperCase().trim()
-            if (code.match(codeRegex)) {
-              possibleCodes.add(code)
-            } else {
-              // Try finding partial matches if the whole string isn't a code
-              const matches = code.match(codeRegex)
-              matches?.forEach(m => possibleCodes.add(m))
-            }
-          }
-          
-          // 2. Check model/modification fields
-          const textToSearch = `${car.model || ''} ${car.modification || ''}`.toUpperCase()
-          const matches = textToSearch.match(codeRegex)
-          matches?.forEach(m => possibleCodes.add(m))
-
-          possibleCodes.forEach(code => {
-            // Filter out obviously wrong codes (like year or common words)
-            if (code.length >= 3 && !/^(20[0-2][0-9]|19[8-9][0-9])$/.test(code)) {
-              bodyCounts.set(code, (bodyCounts.get(code) || 0) + 1)
-            }
-          })
-        })
-
-        // Convert to array and sort by count (most common first)
-        const bodyTypesArray = Array.from(bodyCounts.entries())
-          .map(([body, count]) => ({ body, count }))
-          .sort((a, b) => b.count - a.count)
-
-        setBodyTypes(bodyTypesArray)
+        const data = await response.json()
+        if (data.status === 'success' && Array.isArray(data.results)) {
+          const bodyTypesArray: BodyType[] = data.results.map((item: any) => ({
+            body: item.name,
+            id: item.id
+          }))
+          setBodyTypes(bodyTypesArray)
+        } else {
+          throw new Error(data.message || 'Malformed response')
+        }
       } catch (err) {
         console.error('useBodyTypes error:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch body types')
