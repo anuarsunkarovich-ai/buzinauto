@@ -52,6 +52,46 @@ const toNumber = (value: string | number | undefined | null) => {
   return Number.isFinite(numeric) ? numeric : 0
 }
 
+const toTokyoDateTimeKey = (value: Date) => {
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+    .formatToParts(value)
+    .reduce<Record<string, string>>((acc, part) => {
+      if (part.type !== 'literal') {
+        acc[part.type] = part.value
+      }
+      return acc
+    }, {})
+
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`
+}
+
+const normalizeAuctionDateKey = (value: string | undefined | null) => {
+  const text = String(value || '').trim()
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?/)
+  if (!match) {
+    return ''
+  }
+
+  return `${match[1]} ${match[2] || '00'}:${match[3] || '00'}`
+}
+
+const isCompletedAuctionDate = (value: string | undefined | null) => {
+  const normalizedAuctionDate = normalizeAuctionDateKey(value)
+  if (!normalizedAuctionDate) {
+    return false
+  }
+
+  return normalizedAuctionDate <= toTokyoDateTimeKey(new Date())
+}
+
 const pickPriceJpy = (car: FastApiSearchCar) =>
   toNumber(car.calculation_price_jpy ?? car.average_price_jpy ?? car.price_jpy)
 
@@ -65,6 +105,7 @@ export const buildAuctionStatsFallbackFromSearchResults = (
   exchangeRate = 0,
 ): AuctionStatsResponse | null => {
   const priced = cars
+    .filter((car) => isCompletedAuctionDate(car.auction_date))
     .map((car) => ({
       car,
       priceJpy: pickPriceJpy(car),

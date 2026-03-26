@@ -4,7 +4,7 @@ import time
 from collections import Counter
 
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import re
 
 from fastapi import FastAPI, Query
@@ -239,6 +239,23 @@ def _safe_number(value: object) -> float:
         return float(clean or 0.0)
     except Exception:
         return 0.0
+
+
+def _is_completed_auction_date(value: object) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+
+    now_jst = datetime.utcnow() + timedelta(hours=9)
+
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            auction_dt = datetime.strptime(text, fmt)
+            return auction_dt <= now_jst
+        except ValueError:
+            continue
+
+    return False
 
 
 @app.get("/api/v1/search")
@@ -616,6 +633,7 @@ async def auction_stats(
             search_type="max",
             body="",
         )
+    cars = [c for c in cars if _is_completed_auction_date(c.get("auction_date"))]
 
     # ── Apply Filtering ───────────────────────────────────────────────────────
     def _to_int_price(v) -> int:

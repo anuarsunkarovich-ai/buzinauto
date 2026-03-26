@@ -78,6 +78,11 @@ describe('auction stats URL builder', () => {
   })
 
   it('builds stats from search results when the stats endpoint is empty', () => {
+    const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 16)
+      .replace('T', ' ')
+
     const stats = buildAuctionStatsFallbackFromSearchResults(
       [
         {
@@ -102,13 +107,28 @@ describe('auction stats URL builder', () => {
           grade: '4.5',
           price_jpy: '1800000',
           total_rub: 1350000,
-          auction_date: '2026-03-27 10:00',
+          auction_date: '2026-03-25 10:00',
           body: 'RS',
           model_code: 'FL1',
           transmission: 'AT',
           color: 'Black',
           year: '2024',
           engine_cc: '1500',
+        },
+        {
+          lot: '3',
+          brand: 'HONDA',
+          model: 'CIVIC',
+          grade: 'S',
+          price_jpy: '2500000',
+          total_rub: 1800000,
+          auction_date: futureDate,
+          body: 'TYPE R',
+          model_code: 'FL5',
+          transmission: 'MT',
+          color: 'Red',
+          year: '2025',
+          engine_cc: '2000',
         },
       ],
       'honda',
@@ -121,6 +141,7 @@ describe('auction stats URL builder', () => {
     expect(stats?.avg_price_jpy).toBe(1500000)
     expect(stats?.price_range.min_jpy).toBe(1200000)
     expect(stats?.price_range.max_jpy).toBe(1800000)
-    expect(stats?.recent_lots[0]?.lot).toBe('2')
+    expect(stats?.recent_lots[0]?.lot).toBe('1')
+    expect(stats?.recent_lots.some((lot) => lot.lot === '3')).toBe(false)
   })
 })
