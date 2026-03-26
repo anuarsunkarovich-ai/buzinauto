@@ -1054,9 +1054,13 @@ def fetch_aleado_average_price(detail_link: str) -> int:
 
 def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max", body: str = "") -> list[dict[str, Any]]:
     """Fetch car lots from Aleado based on search type (live/stats) and body code."""
-    brand_id = str(brand_id or "").strip().strip('"').strip("'")
-    model_id = str(model_id or "").strip().strip('"').strip("'")
-    body = str(body or "").strip().strip('"').strip("'")
+    def clean_id(s: str) -> str:
+        if not s: return ""
+        return str(s).strip().replace('\\', '').strip('"').strip("'").strip()
+
+    brand_id = clean_id(brand_id)
+    model_id = clean_id(model_id)
+    body = clean_id(body)
     
     # Base params as a list of tuples to handle flag-only params like s and ld correctly
     params = [
@@ -1071,12 +1075,14 @@ def fetch_aleado_data(brand_id: str, model_id: str = "", search_type: str = "max
     if body:
         params.append(("body", body))
 
+    print(f"DEBUG: Scraper calling Aleado path={search_type} with params={params}")
+
     try:
         path = "/stats/" if search_type == "stats" else "/auctions/"
         response = _fetch_aleado_page(path, params=params)
         
         # Check for login redirection
-        if "Вход" in response.text and "username" in response.text:
+        if "Вход" in response.text and (("username" in response.text) or ("password" in response.text)):
             print("DEBUG: Aleado search failed - redirected to login. Re-authenticating...")
             with _aleado_session_context() as client:
                 _login_aleado(client)

@@ -53,9 +53,14 @@ def _normalize_token(value: str) -> str:
 
 
 def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
-    # Sanitize input immediately
-    brand = str(brand or "").strip().strip('"').strip("'")
-    model = str(model or "").strip().strip('"').strip("'")
+    # Sanitize input immediately - remove any quotes, backslashes, or whitespace
+    def clean_id(s: str) -> str:
+        if not s: return ""
+        # Remove literal backslashes and quotes
+        return str(s).strip().replace('\\', '').strip('"').strip("'").strip()
+
+    brand = clean_id(brand)
+    model = clean_id(model)
     
     brand_id = brand
     model_id = model
@@ -73,13 +78,13 @@ def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
             None,
         )
         if brand_match:
-            brand_id = str(brand_match["id"]).strip().strip('"').strip("'")
+            brand_id = clean_id(str(brand_match["id"]))
 
         models = fetch_aleado_filters(brand_id)
         normalized_model = _normalize_token(model)
         model_match = None
         for item in models:
-            item_raw_id = str(item.get("id", "")).strip().strip('"').strip("'")
+            item_raw_id = clean_id(str(item.get("id", "")))
             if item_raw_id in {"", "-1"}:
                 continue
 
@@ -98,7 +103,7 @@ def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
                 break
 
         if model_match:
-            model_id = str(model_match["id"]).strip().strip('"').strip("'")
+            model_id = clean_id(str(model_match["id"]))
             model_matched = True
         elif models:
             print(f"DEBUG: No exact model match for '{model}', setting model_id to empty")
@@ -261,11 +266,8 @@ async def search_and_calculate(
     eur_rate = get_euro_rate()
     resolved_brand, resolved_model, model_matched = resolve_aleado_ids(brand, model)
     print(
-        f"DEBUG: Search input brand/model={brand}/{model} resolved to "
-        f"{resolved_brand}/{resolved_model or '[brand-only]'}"
+        f"DEBUG: FINAL RESOLVED brand/model for search: {resolved_brand}/{resolved_model} (matched: {model_matched})"
     )
-    if not model_matched:
-        print("DEBUG: Model not matched; using brand-only scrape for broader results")
     brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
     cars = await asyncio.to_thread(
         fetch_aleado_data,
