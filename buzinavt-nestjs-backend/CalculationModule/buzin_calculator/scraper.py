@@ -54,6 +54,14 @@ def _normalize(text: str) -> str:
     return re.sub(r"[^0-9a-zа-яё]+", "", (text or "").lower())
 
 
+def _tokenize_filter_value(text: str) -> list[str]:
+    return [
+        token
+        for token in re.split(r"[^0-9a-zа-яё]+", str(text or "").strip().lower())
+        if token
+    ]
+
+
 def _absolute_aleado_url(url: str) -> str:
     if not url:
         return ""
@@ -655,14 +663,20 @@ def _matches_normalized_body_filter(body_filter: str, *candidates: str) -> bool:
     if not normalized_filter:
         return True
 
+    filter_tokens = _tokenize_filter_value(body_filter)
+
     for candidate in candidates:
-        normalized_candidate = _normalize(candidate)
+        candidate_text = str(candidate or "")
+        normalized_candidate = _normalize(candidate_text)
         if not normalized_candidate:
             continue
-        if (
-            normalized_candidate == normalized_filter
-            or normalized_candidate in normalized_filter
-            or normalized_filter in normalized_candidate
+
+        if normalized_candidate == normalized_filter:
+            return True
+
+        candidate_tokens = _tokenize_filter_value(candidate_text)
+        if filter_tokens and candidate_tokens and all(
+            token in candidate_tokens for token in filter_tokens
         ):
             return True
 

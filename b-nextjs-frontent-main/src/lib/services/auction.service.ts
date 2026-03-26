@@ -73,6 +73,13 @@ const normalizeSearchValue = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '')
 
+const tokenizeSearchValue = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter(Boolean)
+
 const matchesBodyQuery = (car: FastApiSearchCar, bodyQuery: string) => {
   const normalizedQuery = normalizeSearchValue(bodyQuery)
 
@@ -80,15 +87,22 @@ const matchesBodyQuery = (car: FastApiSearchCar, bodyQuery: string) => {
     return true
   }
 
+  const queryTokens = tokenizeSearchValue(bodyQuery)
   const candidates = [car.body, car.model_code, car.modification]
 
   return candidates.some((candidate) => {
-    const normalizedCandidate = normalizeSearchValue(String(candidate || ''))
-    return (
-      normalizedCandidate === normalizedQuery ||
-      normalizedCandidate.includes(normalizedQuery) ||
-      normalizedQuery.includes(normalizedCandidate)
-    )
+    const candidateText = String(candidate || '')
+    const normalizedCandidate = normalizeSearchValue(candidateText)
+    if (!normalizedCandidate) {
+      return false
+    }
+
+    if (normalizedCandidate === normalizedQuery) {
+      return true
+    }
+
+    const candidateTokens = tokenizeSearchValue(candidateText)
+    return queryTokens.length > 0 && queryTokens.every((token) => candidateTokens.includes(token))
   })
 }
 

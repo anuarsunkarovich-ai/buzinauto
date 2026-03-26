@@ -52,19 +52,33 @@ def _normalize_token(value: str) -> str:
     return value.strip().lower().replace(" ", "").replace("-", "").replace("_", "")
 
 
+def _tokenize_filter_value(value: str) -> list[str]:
+    return [
+        token
+        for token in re.split(r"[^0-9a-zа-яё]+", str(value or "").strip().lower())
+        if token
+    ]
+
+
 def _matches_body_filter(body_filter: str, *candidates: str) -> bool:
     normalized_filter = _normalize_token(body_filter)
     if not normalized_filter:
         return True
 
+    filter_tokens = _tokenize_filter_value(body_filter)
+
     for candidate in candidates:
-        normalized_candidate = _normalize_token(str(candidate or ""))
+        candidate_text = str(candidate or "")
+        normalized_candidate = _normalize_token(candidate_text)
         if not normalized_candidate:
             continue
-        if (
-            normalized_candidate == normalized_filter
-            or normalized_candidate in normalized_filter
-            or normalized_filter in normalized_candidate
+
+        if normalized_candidate == normalized_filter:
+            return True
+
+        candidate_tokens = _tokenize_filter_value(candidate_text)
+        if filter_tokens and candidate_tokens and all(
+            token in candidate_tokens for token in filter_tokens
         ):
             return True
 
