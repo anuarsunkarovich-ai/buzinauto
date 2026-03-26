@@ -313,11 +313,25 @@ async def search_and_calculate(
         fetch_aleado_data,
         resolved_brand,
         resolved_model,
-        search_type="max",
+        search_type="stats",
         body="",
+        result_filter="2",
     )
 
     # ── Apply Filters ────────────────────────────────────────────────────────
+    if not cars:
+        print(
+            f"DEBUG: Catalog stats search returned 0 rows for {resolved_brand}/{resolved_model}. "
+            "Retrying with live search fallback."
+        )
+        cars = await asyncio.to_thread(
+            fetch_aleado_data,
+            resolved_brand,
+            resolved_model,
+            search_type="max",
+            body="",
+        )
+
     if auction_date:
         cars = [
             car

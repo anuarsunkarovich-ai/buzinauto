@@ -711,6 +711,7 @@ def _build_stats_search_payload(
     brand_id: str,
     model_id: str = "",
     *,
+    result_filter: str = "0",
     page: int = 1,
     page_size: int = ALEADO_RESULTS_PAGE_SIZE,
 ) -> dict[str, str]:
@@ -718,7 +719,7 @@ def _build_stats_search_payload(
     start_date = today - timedelta(days=90)
     payload = {
         "p": "project/findlots",
-        "result": "0",
+        "result": str(result_filter or "0"),
         "vs": str(page_size),
         "pg": str(max(1, page)),
         "mrk": brand_id,
@@ -1243,6 +1244,7 @@ def _fetch_aleado_data_single_page(
     search_type: str = "max",
     body: str = "",
     *,
+    result_filter: str = "0",
     page: int = 1,
     page_size: int = ALEADO_RESULTS_PAGE_SIZE,
 ) -> list[dict[str, Any]]:
@@ -1285,6 +1287,7 @@ def _fetch_aleado_data_single_page(
                 "data": _build_stats_search_payload(
                     brand_id,
                     model_id,
+                    result_filter=result_filter,
                     page=page,
                     page_size=page_size,
                 ),
@@ -1303,6 +1306,7 @@ def _fetch_aleado_data_single_page(
                         data=_build_stats_search_payload(
                             brand_id,
                             model_id,
+                            result_filter=result_filter,
                             page=page,
                             page_size=page_size,
                         ),
@@ -1418,12 +1422,14 @@ def fetch_aleado_data(
     model_id: str = "",
     search_type: str = "max",
     body: str = "",
+    result_filter: str = "0",
 ) -> list[dict[str, Any]]:
     first_page_rows = _fetch_aleado_data_single_page(
         brand_id,
         model_id,
         search_type=search_type,
         body=body,
+        result_filter=result_filter,
         page=1,
         page_size=ALEADO_RESULTS_PAGE_SIZE,
     )
@@ -1436,6 +1442,7 @@ def fetch_aleado_data(
                 data=_build_stats_search_payload(
                     str(brand_id or ""),
                     str(model_id or ""),
+                    result_filter=result_filter,
                     page=1,
                     page_size=ALEADO_RESULTS_PAGE_SIZE,
                 ),
@@ -1481,6 +1488,7 @@ def fetch_aleado_data(
             model_id,
             search_type=search_type,
             body=body,
+            result_filter=result_filter,
             page=page,
             page_size=ALEADO_RESULTS_PAGE_SIZE,
         )
