@@ -4,6 +4,7 @@ import { z } from 'zod'
 export const filterAutoSchema = z.object({
   model: z.string('Выберите модель автомобиля').optional(),
   make: z.string('Выберите марку автомобиля').optional(),
+  rating: z.string().optional(),
   minGrade: z.string().optional(),
   maxGrade: z.string().optional(),
   auctionDate: z.string().optional(),

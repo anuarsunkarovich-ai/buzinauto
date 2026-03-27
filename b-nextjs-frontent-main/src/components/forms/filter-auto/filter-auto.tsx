@@ -62,6 +62,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
       make: defaultValues?.make,
       body: defaultValues?.body,
       model: defaultValues?.model,
+      rating: defaultValues?.rating,
       maxYear: defaultValues?.maxYear ? parseInt(defaultValues.maxYear) : undefined,
       minYear: defaultValues?.minYear ? parseInt(defaultValues.minYear) : undefined,
       maxEnginePower: defaultValues?.maxEnginePower
