@@ -85,6 +85,8 @@ type FastApiSearchResponse = {
   duty_rate_source?: string
 }
 
+type FastApiSearchPayload = FastApiSearchResponse | FastApiSearchCar[]
+
 type SearchCarsResponse = {
   results: FastApiSearchCar[]
   exchange_rate?: number
@@ -286,18 +288,25 @@ export const searchCars = async ({
     throw new Error(`FastAPI search failed with status ${response.status}`)
   }
 
-  const data = (await response.json()) as FastApiSearchResponse
-  const rawResults = (data.results || []) as FastApiSearchCar[]
-  const normalizedResults = rawResults
+  const payload = (await response.json()) as FastApiSearchPayload
+  const responseMeta = Array.isArray(payload) ? undefined : payload
+  const rawResults = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.results)
+      ? payload.results
+      : []
+  const filteredResults = rawResults
     .filter((car) => (model ? matchesModelQuery(car, model) : true))
     .filter((car) => (body ? matchesBodyQuery(car, body) : true))
+  const normalizedResults =
+    filteredResults.length > 0 || (!model && !body) ? filteredResults : rawResults
 
   return {
     results: normalizedResults,
-    exchange_rate: data.exchange_rate,
-    rate_source: data.rate_source,
-    rate_date: data.rate_date,
-    duty_exchange_rate: data.duty_exchange_rate,
-    duty_rate_source: data.duty_rate_source,
+    exchange_rate: responseMeta?.exchange_rate,
+    rate_source: responseMeta?.rate_source,
+    rate_date: responseMeta?.rate_date,
+    duty_exchange_rate: responseMeta?.duty_exchange_rate,
+    duty_rate_source: responseMeta?.duty_rate_source,
   }
 }
