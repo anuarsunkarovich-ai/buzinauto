@@ -33,6 +33,8 @@ export type FastApiSearchCar = {
   price_source?: string
   image_url?: string
   image_urls?: string[]
+  auction_sheet_url?: string
+  detail_link?: string
   price_details?: {
     car_price_rub?: number
     car_price_jpy?: number
@@ -41,9 +43,18 @@ export type FastApiSearchCar = {
     buy_and_delivery_rub?: number
     customs_broker_rub?: number
     customs_duty_rub?: number
+    customs_processing_fee_rub?: number
+    excise_rub?: number
     util_fee_rub?: number
     svh_transport_rub?: number
     company_commission?: number
+    exchange_rate?: number
+    rate_source?: string
+    bank_buy_rate?: number
+    bank_sell_rate?: number
+    usage_type?: string
+    user_type?: string
+    forced_commercial?: boolean
     total_rub?: number
   }
   total_rub?: number
@@ -65,6 +76,16 @@ export type FastApiSearchCar = {
 
 type FastApiSearchResponse = {
   results: FastApiSearchCar[]
+  exchange_rate?: number
+  rate_source?: string
+  rate_date?: string
+}
+
+type SearchCarsResponse = {
+  results: FastApiSearchCar[]
+  exchange_rate?: number
+  rate_source?: string
+  rate_date?: string
 }
 
 const normalizeSearchValue = (value: string) =>
@@ -221,7 +242,7 @@ export const searchCars = async ({
   minPrice,
   maxPrice,
   limit,
-}: SearchCarsParams): Promise<{ results: FastApiSearchCar[]; exchange_rate?: number; rate_source?: string; rate_date?: string }> => {
+}: SearchCarsParams): Promise<SearchCarsResponse> => {
   const baseUrl = getRuntimeBackendApiUrl()
 
   if (!baseUrl) {
@@ -248,6 +269,7 @@ export const searchCars = async ({
       limit,
     }).toString(),
     {
+      cache: 'no-store',
       headers: {
         'ngrok-skip-browser-warning': 'true',
       },
@@ -258,7 +280,7 @@ export const searchCars = async ({
     throw new Error(`FastAPI search failed with status ${response.status}`)
   }
 
-  const data = await response.json()
+  const data = (await response.json()) as FastApiSearchResponse
   const rawResults = (data.results || []) as FastApiSearchCar[]
   const normalizedResults = rawResults
     .filter((car) => (model ? matchesModelQuery(car, model) : true))

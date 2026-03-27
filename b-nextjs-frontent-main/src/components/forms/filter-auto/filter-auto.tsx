@@ -304,6 +304,38 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
       }
 
       if (onSearch) {
+        const brandMatch =
+          brands.find((brand) => brand.brand === (resolvedSelectedMake || values.make)) ||
+          brands.find((brand) => brand.brand === values.make)
+        const modelMatch =
+          models.find(
+            (model) =>
+              (model.modelSlug || model.model) === (resolvedSelectedModel || values.model),
+          ) || models.find((model) => (model.modelSlug || model.model) === values.model)
+        const isStatsPath = pathname.includes('/stats')
+        const targetSubPath = isStatsPath ? 'stats' : 'cars'
+
+        if (typeof window !== 'undefined') {
+          const stateQuery = new URLSearchParams(query)
+          if (brandMatch?.brandName || values.make) {
+            stateQuery.set('make', toUrlSlug(brandMatch?.brandName || values.make))
+          }
+          if (modelMatch?.modelDisplay || values.model) {
+            stateQuery.set(
+              'model',
+              modelMatch?.modelSlug || toUrlSlug(modelMatch?.modelDisplay || values.model),
+            )
+          }
+
+          const statePath = `${country?.pathname}/${targetSubPath}`
+          const stateQueryString = stateQuery.toString()
+          window.history.replaceState(
+            window.history.state,
+            '',
+            stateQueryString ? `${statePath}?${stateQueryString}` : statePath,
+          )
+        }
+
         await onSearch({
           ...values,
           make: resolvedSelectedMake || values.make,

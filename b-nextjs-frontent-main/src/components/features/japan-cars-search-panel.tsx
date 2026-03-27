@@ -18,6 +18,55 @@ type JapanCarsSearchPanelProps = {
 type FastApiSearchCar = Awaited<ReturnType<typeof searchCars>>['results'][number]
 type SearchValues = z.infer<typeof filterAutoSchema>
 
+const hasDefaultSearchValues = (defaultValues?: FilterAutoPropsTypes['defaultValues']) =>
+  Boolean(
+    defaultValues?.make ||
+      defaultValues?.model ||
+      defaultValues?.body ||
+      defaultValues?.auctionDate ||
+      defaultValues?.rating ||
+      defaultValues?.minGrade ||
+      defaultValues?.maxGrade ||
+      defaultValues?.minYear ||
+      defaultValues?.maxYear ||
+      defaultValues?.minMileageKm ||
+      defaultValues?.maxMileageKm ||
+      defaultValues?.minEnginePower ||
+      defaultValues?.maxEnginePower ||
+      defaultValues?.minPrice ||
+      defaultValues?.maxPrice,
+  )
+
+const toNumber = (value?: string) => {
+  if (!value) {
+    return undefined
+  }
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const defaultValuesToSearchValues = (
+  defaultValues?: FilterAutoPropsTypes['defaultValues'],
+): SearchValues => ({
+  make: defaultValues?.make,
+  model: defaultValues?.model,
+  body: defaultValues?.body,
+  auctionDate: defaultValues?.auctionDate,
+  rating: defaultValues?.rating,
+  minGrade: defaultValues?.minGrade,
+  maxGrade: defaultValues?.maxGrade,
+  minYear: toNumber(defaultValues?.minYear),
+  maxYear: toNumber(defaultValues?.maxYear),
+  minMileageKm: toNumber(defaultValues?.minMileageKm),
+  maxMileageKm: toNumber(defaultValues?.maxMileageKm),
+  minEnginePower: toNumber(defaultValues?.minEnginePower),
+  maxEnginePower: toNumber(defaultValues?.maxEnginePower),
+  minPrice: toNumber(defaultValues?.minPrice),
+  maxPrice: toNumber(defaultValues?.maxPrice),
+  saleCountry: defaultValues?.saleCountry,
+})
+
 const pickImage = (car: FastApiSearchCar) => {
   return car.image_url || car.image_urls?.[0] || '/static/img/loading72.gif'
 }
@@ -130,16 +179,19 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
     source: string
     date?: string
   } | null>(null)
+  const autoSearchKeyRef = React.useRef('')
 
   React.useEffect(() => {
     setCars(initialItems)
     setHasSubmittedSearch(false)
+    setExchangeRate(null)
   }, [initialItems])
 
   const handleSearch = React.useCallback(
     async (values: SearchValues) => {
       setHasSubmittedSearch(true)
       setLoading(true)
+      setExchangeRate(null)
       try {
         const response = await searchCars({
           brand: String(values.make || defaultValues?.make || '9'),
@@ -174,6 +226,21 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
     },
     [defaultValues?.make],
   )
+
+  React.useEffect(() => {
+    if (!hasDefaultSearchValues(defaultValues)) {
+      autoSearchKeyRef.current = ''
+      return
+    }
+
+    const serializedDefaultValues = JSON.stringify(defaultValues)
+    if (autoSearchKeyRef.current === serializedDefaultValues) {
+      return
+    }
+
+    autoSearchKeyRef.current = serializedDefaultValues
+    void handleSearch(defaultValuesToSearchValues(defaultValues))
+  }, [defaultValues, handleSearch])
 
   return (
     <div className="flex flex-col space-y-6">

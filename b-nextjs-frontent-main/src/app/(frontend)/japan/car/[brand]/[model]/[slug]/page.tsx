@@ -18,9 +18,16 @@ import { Country } from '@/constants/country'
 import { FAQJapanData } from '@/constants/faq'
 import { generateDescription, generateH1, generateTitle } from '@/constants/meta'
 import { mapperToCar, mapperToCarDescription } from '@/lib/mappers/car-catalog.mapper'
+import {
+  mapFastApiCarToDescription,
+  mapFastApiCarToGalleryItems,
+  mapFastApiCarToVisibleCard,
+} from '@/lib/mappers/fastapi-car.mapper'
 import { ImageGalleryMapper } from '@/lib/mappers/image-gallery.mapper'
 import { getManyCatalogCarPromise, getOneByCatalogCarId } from '@/lib/query/query-promise'
+import { getLiveAuctionLotByRoute } from '@/lib/services/live-auction-lot.service'
 import { toModelDisplay, toReadableSlug, toUrlSlug, toValidSlug } from '@/lib/transform'
+import { isMongoId } from '@/lib/utils'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
@@ -28,31 +35,10 @@ export const revalidate = 300
 
 type Params = { params: Promise<{ brand: string; model: string; slug: string }> }
 
-export async function generateMetadata({ params: paramsPromise }: Params): Promise<Metadata> {
-  const { brand, model, slug } = await paramsPromise
+const fallbackImage = '/static/img/loading72.gif'
+const isVisibleCard = <T,>(value: T | null): value is T => Boolean(value)
 
-  const car = await getOneByCatalogCarId(slug)
-
-  const lot = car?.lot || slug.replace(/\D/g, '').slice(0, 5)
-
-  return {
-    description: generateDescription.begin(
-      `${toReadableSlug(brand)} ${toReadableSlug(model)}, ${car?.year ? car?.year + ' год' : ''} № ${lot} из Японии`,
-      undefined,
-    ),
-    title: generateTitle.middleJapan(
-      `${toReadableSlug(brand)} ${toReadableSlug(model)}, ${car?.year ? car?.year + ' год' : ''}`,
-      'Заказать',
-      `№ ${lot}`,
-    ),
-    alternates: {
-      canonical: './',
-    },
-  }
-}
-
-export default async function JapanCarsPage({ params: paramsPromise }: Params) {
-  const { brand, model, slug } = await paramsPromise
+const getStoredCarPageData = async (brand: string, model: string, slug: string) => {
   const [item, { docs: japanDocs }, { docs: chinaDocs }] = await Promise.all([
     getOneByCatalogCarId(slug),
     getManyCatalogCarPromise(1, {
@@ -67,15 +53,126 @@ export default async function JapanCarsPage({ params: paramsPromise }: Params) {
       model: model,
     }),
   ])
-  if (!item) return notFound()
+
+  if (!item) {
+    return null
+  }
 
   const brandSlug = toUrlSlug(item.brand)
-  if (item.modelSlug !== model || brandSlug !== brand) return notFound()
-  const car = mapperToCarDescription(item)
-  if (!car) return notFound()
+  if (item.modelSlug !== model || brandSlug !== brand) {
+    return null
+  }
 
-  const japanItems = japanDocs.map((car) => mapperToCar(car)).filter((e) => !!e)
-  const chinaItems = chinaDocs.map((car) => mapperToCar(car)).filter((e) => !!e)
+  const carDescription = mapperToCarDescription(item)
+  if (!carDescription) {
+    return null
+  }
+
+  return {
+    titleBrand: toModelDisplay(item.brand),
+    titleModel: item.modelDisplay,
+    year: item.year,
+    lot: item.lot ? String(item.lot) : slug.replace(/\D/g, '').slice(0, 5),
+    images:
+      (item.images
+        ?.map((image): ImageGalleryViewerItems | undefined => {
+          if (typeof image === 'string') {
+            return undefined
+          }
+          return ImageGalleryMapper.toProps(image)
+        })
+        .filter(Boolean) as ImageGalleryViewerItems[]) || [],
+    description: carDescription,
+    japanItems: japanDocs.map((car) => mapperToCar(car)).filter(isVisibleCard),
+    chinaItems: chinaDocs.map((car) => mapperToCar(car)).filter(isVisibleCard),
+  }
+}
+
+const getLiveCarPageData = async (brand: string, model: string, slug: string) => {
+  const [{ current, related }, { docs: chinaDocs }] = await Promise.all([
+    getLiveAuctionLotByRoute(brand, model, slug),
+    getManyCatalogCarPromise(1, {
+      country: Country.CHINA,
+      brand: toValidSlug(brand),
+      model: model,
+    }),
+  ])
+
+  if (!current) {
+    return null
+  }
+
+  const liveBrandSlug = toUrlSlug(current.brand || brand)
+  const liveModelSlug = toUrlSlug(current.modelSlug || current.modelDisplay || current.model || model)
+
+  if (liveBrandSlug !== brand || liveModelSlug !== model) {
+    return null
+  }
+
+  return {
+    titleBrand: toModelDisplay(current.brand || brand),
+    titleModel: current.modelDisplay || current.model || toReadableSlug(model),
+    year: Number(current.year || new Date().getFullYear()),
+    lot: String(current.lot || slug),
+    images: mapFastApiCarToGalleryItems(current),
+    description: mapFastApiCarToDescription(current),
+    japanItems: related.slice(0, 10).map((car, index) => mapFastApiCarToVisibleCard(car, index)),
+    chinaItems: chinaDocs.map((car) => mapperToCar(car)).filter(isVisibleCard),
+  }
+}
+
+const getCarPageData = async (brand: string, model: string, slug: string) => {
+  if (isMongoId(slug)) {
+    return getStoredCarPageData(brand, model, slug)
+  }
+
+  return getLiveCarPageData(brand, model, slug)
+}
+
+export async function generateMetadata({ params: paramsPromise }: Params): Promise<Metadata> {
+  const { brand, model, slug } = await paramsPromise
+  const pageData = await getCarPageData(brand, model, slug)
+
+  const lot = pageData?.lot || slug.replace(/\D/g, '').slice(0, 5)
+  const year = pageData?.year ? `${pageData.year} год` : ''
+  const displayTitle = `${toReadableSlug(brand)} ${toReadableSlug(model)}`
+
+  return {
+    description: generateDescription.begin(`${displayTitle}, ${year} № ${lot} из Японии`, undefined),
+    title: generateTitle.middleJapan(displayTitle + (year ? `, ${year}` : ''), 'Заказать', `№ ${lot}`),
+    alternates: {
+      canonical: './',
+    },
+  }
+}
+
+export default async function JapanCarsPage({ params: paramsPromise }: Params) {
+  const { brand, model, slug } = await paramsPromise
+  const pageData = await getCarPageData(brand, model, slug)
+
+  if (!pageData) {
+    return notFound()
+  }
+
+  const images =
+    pageData.images.length > 0
+      ? pageData.images
+      : [
+          {
+            id: `${slug}-fallback`,
+            src: fallbackImage,
+            alt: `${pageData.titleBrand} ${pageData.titleModel}`,
+            width: 800,
+            height: 600,
+            thumbnail: {
+              id: `${slug}-fallback-thumbnail`,
+              src: fallbackImage,
+              alt: `${pageData.titleBrand} ${pageData.titleModel}`,
+              width: 320,
+              height: 240,
+            },
+          },
+        ]
 
   return (
     <div
@@ -99,7 +196,7 @@ export default async function JapanCarsPage({ params: paramsPromise }: Params) {
           ]}
         />
         <Title as="h1">
-          {generateH1.middleJapan('', `${toReadableSlug(brand)} ${toReadableSlug(model)}`)}
+          {generateH1.middleJapan('', `${pageData.titleBrand} ${pageData.titleModel}`)}
         </Title>
       </BoxContainer>
       <BoxContainer
@@ -112,54 +209,45 @@ export default async function JapanCarsPage({ params: paramsPromise }: Params) {
       >
         <meta
           itemProp="name"
-          content={`${toModelDisplay(item.brand)} ${item.modelDisplay}, ${item.year} год`}
+          content={`${pageData.titleBrand} ${pageData.titleModel}, ${pageData.year} год`}
         />
         <meta
           itemProp="description"
-          content={`Надёжный ${toModelDisplay(item.brand)} ${item.modelDisplay} автомобиль - ${item.year} года${item.color ? `, цвет ${item.color}` : ''}`}
+          content={`Надежный ${pageData.titleBrand} ${pageData.titleModel} автомобиль - ${pageData.year} года`}
         />
         <ImageGalleryViewer
           className={`
             w-full
             md:w-1/2 md:pr-8
           `}
-          images={
-            item.images
-              ?.map((image): ImageGalleryViewerItems | undefined => {
-                if (typeof image === 'string') return
-                return ImageGalleryMapper.toProps(image)
-              })
-              .filter((e) => !!e) as ImageGalleryViewerItems[]
-          }
+          images={images}
         />
         <CarDescription
           className={`
             w-full
             md:w-1/2
           `}
-          {...car}
+          {...pageData.description}
         />
       </BoxContainer>
       <BoxContainer>
         <BannerOrderCar />
       </BoxContainer>
-      {japanItems.length && (
+      {pageData.japanItems.length > 0 && (
         <BoxContainer>
-          <CarCarouselSlider title="Похожие авто" items={japanItems} />
+          <CarCarouselSlider title="Похожие авто" items={pageData.japanItems} />
         </BoxContainer>
       )}
       <BoxContainer>
         <Title as="h2" className="text-center">
-          Преимущества​
+          Преимущества
         </Title>
         <Advantages />
       </BoxContainer>
-      {chinaItems.length ? (
+      {pageData.chinaItems.length > 0 && (
         <BoxContainer>
-          <CarCarouselSlider title="Похожие авто из Китая" items={chinaItems} />
+          <CarCarouselSlider title="Похожие авто из Китая" items={pageData.chinaItems} />
         </BoxContainer>
-      ) : (
-        <></>
       )}
       <BoxContainer>
         <Title as="h2" className="text-center">
