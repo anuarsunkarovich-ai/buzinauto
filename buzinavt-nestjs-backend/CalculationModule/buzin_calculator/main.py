@@ -326,6 +326,22 @@ def _is_completed_auction_date(value: object) -> bool:
     return False
 
 
+def _is_catalog_active_lot(car: dict) -> bool:
+    sale_status = str(car.get("sale_status") or "").strip().lower()
+
+    if _is_completed_auction_date(car.get("auction_date")):
+        return False
+
+    if not sale_status:
+        return True
+
+    if "не продан" in sale_status:
+        return False
+
+    blocked_status_tokens = ("продан", "отмен", "cancel", "sold", "unsold")
+    return not any(token in sale_status for token in blocked_status_tokens)
+
+
 @app.get("/api/v1/search")
 async def search_and_calculate(
     brand: str = "9",
@@ -343,6 +359,7 @@ async def search_and_calculate(
     min_price_rub: float | None = None,
     max_price_rub: float | None = None,
     usage_type: str = "private",
+    include_completed: bool = Query(False, description="Include completed/archive lots"),
     limit: int | None = Query(None, description="Max number of cars to return"),
 ):
     atb_rates = fetch_atb_jpy_rate()
@@ -355,28 +372,27 @@ async def search_and_calculate(
         f"DEBUG: FINAL RESOLVED brand/model for search: {resolved_brand}/{resolved_model} (matched: {model_matched})"
     )
     brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
-    cars = await asyncio.to_thread(
-        fetch_aleado_data,
-        resolved_brand,
-        resolved_model,
-        search_type="stats",
-        body="",
-        result_filter="2",
-    )
-
-    # ── Apply Filters ────────────────────────────────────────────────────────
-    if not cars:
-        print(
-            f"DEBUG: Catalog stats search returned 0 rows for {resolved_brand}/{resolved_model}. "
-            "Retrying with live search fallback."
+    if include_completed:
+        cars = await asyncio.to_thread(
+            fetch_aleado_data,
+            resolved_brand,
+            resolved_model,
+            search_type="stats",
+            body="",
+            result_filter="2",
         )
+    else:
         cars = await asyncio.to_thread(
             fetch_aleado_data,
             resolved_brand,
             resolved_model,
             search_type="max",
-            body="",
+            body=str(body or ""),
         )
+
+    # ── Apply Filters ────────────────────────────────────────────────────────
+    if not include_completed:
+        cars = [car for car in cars if _is_catalog_active_lot(car)]
 
     if auction_date:
         cars = [

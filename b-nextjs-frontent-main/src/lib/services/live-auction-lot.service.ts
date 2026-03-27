@@ -16,6 +16,7 @@ export const getLiveAuctionLotByRoute = async (brandSlug: string, modelSlug: str
   const response = await searchCars({
     brand: toValidSlug(brandSlug),
     model: modelSlug,
+    includeCompleted: true,
   })
 
   const current = response.results.find((car) => normalizeLot(car.lot) === normalizedLot)

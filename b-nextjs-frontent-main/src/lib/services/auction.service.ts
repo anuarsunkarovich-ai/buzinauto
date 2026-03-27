@@ -3,6 +3,7 @@ import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
 export type SearchCarsParams = {
   brand: string
   model?: string
+  includeCompleted?: boolean
   body?: string
   auctionDate?: string
   minGrade?: string
@@ -166,6 +167,7 @@ const buildSearchUrl = (
   {
     brand,
     model,
+    includeCompleted,
     body,
     auctionDate,
     minGrade,
@@ -186,6 +188,9 @@ const buildSearchUrl = (
   url.searchParams.set('brand', brand)
   if (model) {
     url.searchParams.set('model', model)
+  }
+  if (includeCompleted) {
+    url.searchParams.set('include_completed', '1')
   }
   if (body) {
     url.searchParams.set('body', body)
