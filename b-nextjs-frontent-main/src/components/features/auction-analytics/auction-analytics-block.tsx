@@ -209,7 +209,7 @@ export const AuctionAnalyticsBlock = async ({
                     rating={lot.grade}
                     images={[{ src: lot.image_url || '/static/img/loading72.gif', alt: lot.model }]}
                     auctionDate={lot.auction_date}
-                    initialTotalRub={Number(lot.total_rub || 0)}
+                    initialTotalRub={Number(lot.total_rub ?? lot.price_rub ?? 0)}
                   />
                 </CarCarouselOnHoverCard>
                 <div className="pointer-events-none absolute top-2 left-2 z-10">
