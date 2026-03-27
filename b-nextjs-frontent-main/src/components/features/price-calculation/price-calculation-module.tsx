@@ -31,6 +31,7 @@ const UTIL_FEE_TYPES = [
 type CalculationResponse = {
   exchange_rate?: number
   bank_buy_rate?: number
+  bank_sell_rate?: number
   rate_date?: string
   total_rub?: number
   breakdown?: {
@@ -41,7 +42,6 @@ type CalculationResponse = {
     company_commission?: number
   }
 }
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getAgeCategory = (carAge: number) => {
@@ -177,7 +177,8 @@ export const PriceCalculationModule: React.FC = () => {
   }, [calculate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Computed values
-  const exchangeRate = result?.exchange_rate || 0
+  const commercialRate = result?.bank_sell_rate ?? result?.exchange_rate ?? result?.bank_buy_rate ?? 0
+  const exchangeRate = commercialRate
   const auctionRub = exchangeRate > 0 ? Math.round(auctionPriceJpy * exchangeRate) : 0
   const japanRub = Math.round(result?.breakdown?.buy_and_delivery_rub || 0)
   const brokerRub = Math.round(result?.breakdown?.customs_broker_rub || 45000)
@@ -384,9 +385,9 @@ export const PriceCalculationModule: React.FC = () => {
               <span className="text-xs text-white/40">
                 {auctionPriceJpy > 0 ? auctionPriceJpy.toLocaleString('ru-RU') + ' ¥' : '—'}
               </span>
-              {result?.bank_buy_rate && (
+              {commercialRate > 0 && (
                 <span className="text-xs text-white/50 mt-1">
-                  Актуальный курс йены банка АТБ{result?.rate_date ? ` на ${result.rate_date}` : ''} составляет: {result.bank_buy_rate}
+                  Актуальный курс йены банка АТБ{result?.rate_date ? ` на ${result.rate_date}` : ''} составляет: {commercialRate}
                 </span>
               )}
             </div>

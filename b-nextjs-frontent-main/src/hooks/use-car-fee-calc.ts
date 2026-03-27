@@ -176,7 +176,9 @@ type UseCarFeeFuncEnumResult = {
   totalRubAmount: () => number
   calculator: (row: CalculatorRow) => number
   currencyPriceList: DialogDetailedCarItem[]
+  commercialRate?: number
   bankBuyRate?: number
+  bankSellRate?: number
   rateDate?: string
   auctionPrice: () => number
   deliveryPrice: () => number
@@ -233,7 +235,9 @@ export function useCarFeeFuncEnum(
     }
   }, [price, enginePower, horsepower, carAge, engineType, currency, usageType])
 
-  const exchangeRate = result?.exchange_rate || 1
+  const commercialRate =
+    result?.bank_sell_rate ?? result?.exchange_rate ?? result?.bank_buy_rate ?? 0
+  const exchangeRate = commercialRate
   const breakdown = result?.breakdown
 
   const currencyPriceList =
@@ -285,7 +289,9 @@ export function useCarFeeFuncEnum(
     totalRubAmount,
     calculator,
     currencyPriceList,
+    commercialRate,
     bankBuyRate: result?.bank_buy_rate,
+    bankSellRate: result?.bank_sell_rate,
     rateDate: result?.rate_date,
     auctionPrice: () => Math.round(Number(price || 0) * exchangeRate),
     deliveryPrice: () => 0,

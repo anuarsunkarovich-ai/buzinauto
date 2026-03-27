@@ -49,15 +49,16 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
     defaultDeliveryCity ?? currentCity?.id,
   )
 
-  const { totalRubAmount, calculator, currencyPriceList, bankBuyRate, rateDate } = useCarFeeFuncEnum(
-    carPrice,
-    currency,
-    engineType,
-    enginePower,
-    horsepower,
-    carAge,
-    'private',
-  )
+  const { totalRubAmount, calculator, currencyPriceList, commercialRate, rateDate } =
+    useCarFeeFuncEnum(
+      carPrice,
+      currency,
+      engineType,
+      enginePower,
+      horsepower,
+      carAge,
+      'private',
+    )
 
   const { setCurrentCity, currentCity: userCity } = useCity()
 
@@ -93,7 +94,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
         `}
       >
         <DialogHeader>
-          <DialogTitle>Подробный расчёт</DialogTitle>
+          <DialogTitle>Подробный расчет</DialogTitle>
         </DialogHeader>
         <Card className="w-full">
           <CardHeader
@@ -189,9 +190,10 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
                           <Text as="small" className="text-muted-foreground">
                             {carPrice.toLocaleString('ru-RU')} ¥
                           </Text>
-                          {bankBuyRate && (
+                          {commercialRate && (
                             <Text as="small" className="text-center text-muted-foreground">
-                              Актуальный курс йены банка АТБ{rateDate ? ` на ${rateDate}` : ''} составляет: {bankBuyRate}
+                              Актуальный коммерческий курс йены банка АТБ
+                              {rateDate ? ` на ${rateDate}` : ''} составляет: {commercialRate}
                             </Text>
                           )}
                         </>

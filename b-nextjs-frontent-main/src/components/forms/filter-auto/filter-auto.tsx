@@ -238,9 +238,6 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
 
   const onSubmit = React.useCallback(
     async (values: any) => {
-      const selectedModelOption = models.find(
-        (m) => m.model === values.model || m.modelSlug === values.model,
-      )
       const country = CountryPathname.find((e) => e.country === values.saleCountry)
       const currency = country?.country === Country.JAPAN ? 'JPY' : 'CNY'
 
@@ -328,7 +325,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
       const isStatsPath = pathname.includes('/stats')
       const targetSubPath = isStatsPath ? 'stats' : 'cars'
 
-      if (values.make && values.model && selectedModelOption) {
+      if (values.make && values.model) {
         const brandMatch = brands.find((brand) => brand.brand === values.make)
         const modelMatch = models.find(
           (model) => model.model === values.model || model.modelSlug === values.model,
@@ -414,8 +411,17 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                   loadingMessage="Загрузка..."
                   emptyMessage={brandsLoading ? 'Загрузка...' : 'Упс... Ничего не найдено'}
                   onChange={(value) => {
+                    const normalizedCurrentMake = normalizeOptionValue(field.value)
+                    const normalizedNextMake = normalizeOptionValue(value)
+
                     field.onChange(value)
                     setBrandSearchQuery('')
+
+                    if (normalizedCurrentMake !== normalizedNextMake) {
+                      form.setValue('model', '')
+                      form.setValue('body', '')
+                      setModelSearchQuery('')
+                    }
                   }}
                   value={field.value}
                   onSearch={setBrandSearchQuery}
@@ -455,6 +461,7 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                   onChange={(value) => {
                     field.onChange(value)
                     setModelSearchQuery('')
+                    form.setValue('body', '')
                   }}
                   value={field.value}
                   onSearch={setModelSearchQuery}
