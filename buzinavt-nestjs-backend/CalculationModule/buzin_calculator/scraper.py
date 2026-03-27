@@ -6,7 +6,7 @@ import os
 import re
 import time
 from typing import Any
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import parse_qsl, urljoin, urlparse
 
 from decimal import Decimal, ROUND_HALF_UP
 import httpx
@@ -65,14 +65,13 @@ def _tokenize_filter_value(text: str) -> list[str]:
     ]
 
 
-def _absolute_aleado_url(url: str) -> str:
+def _absolute_aleado_url(url: str, base_url: str | None = None) -> str:
     if not url:
         return ""
-    if url.startswith(("http://", "https://")):
-        return url
-    if url.startswith("/"):
-        return f"{ALEADO_BASE_URL}{url}"
-    return f"{ALEADO_BASE_URL}/{url.lstrip('/')}"
+    normalized_url = html.unescape(url).strip()
+    if normalized_url.startswith(("http://", "https://")):
+        return normalized_url
+    return urljoin(base_url or f"{ALEADO_BASE_URL}/", normalized_url)
 
 
 def _is_login_page(text: str, url: str = "") -> bool:
@@ -384,10 +383,8 @@ def fetch_atb_jpy_rate() -> dict[str, float]:
 
         if candidates:
             print(f"DEBUG: All JPY candidates: {candidates}")
-            # Просто берем первый найденный курс на странице, 
-            # обычно это тот, что в главной таблице
-            buy, sell = candidates[0]
-            print(f"DEBUG: Selected JPY rate (first candidate): Buy={buy}, Sell={sell}")
+            buy, sell = max(candidates, key=lambda candidate: (candidate[0], candidate[1]))
+            print(f"DEBUG: Selected JPY rate (max candidate): Buy={buy}, Sell={sell}")
             _ATB_CACHE.update({"buy": buy, "sell": sell, "timestamp": current_time})
             return {"buy": buy, "sell": sell}
 
@@ -1574,7 +1571,14 @@ def _fetch_aleado_data_single_page(
             image_url = _absolute_aleado_url(raw_image_url.split("?w=")[0]) if raw_image_url else ""
 
             link_tag = row.find("a", href=True)
-            detail_link = _absolute_aleado_url(link_tag.get("href", "")) if link_tag else ""
+            detail_link = (
+                _absolute_aleado_url(
+                    link_tag.get("href", ""),
+                    f"{ALEADO_BASE_URL}{path if path.endswith('/') else path + '/'}",
+                )
+                if link_tag
+                else ""
+            )
 
             modification = " ".join(part for part in [model_code, body_val] if part).strip()
             model_display = " ".join(

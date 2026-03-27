@@ -242,6 +242,19 @@ export const normalizeBodyResponse = (payload: unknown): CatalogBodyOption[] => 
 }
 
 export const fetchCatalogBrands = async (country?: string) => {
+  const baseUrl = getRuntimeBackendApiUrl()
+  if (baseUrl) {
+    try {
+      const payload = await fetchJson(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
+      const brands = normalizeBrandResponse(payload)
+      if (brands.length > 0) {
+        return brands
+      }
+    } catch (error) {
+      console.error('fetchCatalogBrands backend error:', error)
+    }
+  }
+
   const searchParams = new URLSearchParams({
     page: '1',
     limit: String(LOCAL_PAGE_LIMIT),
@@ -261,18 +274,30 @@ export const fetchCatalogBrands = async (country?: string) => {
     console.error('fetchCatalogBrands local fallback error:', error)
   }
 
-  const baseUrl = getRuntimeBackendApiUrl()
   if (!baseUrl) {
     return []
   }
-
-  const payload = await fetchJson(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
-  return normalizeBrandResponse(payload)
+  return []
 }
 
 export const fetchCatalogModels = async (brand: string, country?: string) => {
   if (!brand) {
     return []
+  }
+
+  const baseUrl = getRuntimeBackendApiUrl()
+  if (baseUrl) {
+    try {
+      const url = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
+      url.searchParams.set('brand_id', brand)
+      const payload = await fetchJson(url.toString())
+      const models = normalizeModelResponse(payload, brand)
+      if (models.length > 0) {
+        return models
+      }
+    } catch (error) {
+      console.error('fetchCatalogModels backend error:', error)
+    }
   }
 
   const searchParams = new URLSearchParams({
@@ -296,15 +321,10 @@ export const fetchCatalogModels = async (brand: string, country?: string) => {
     console.error('fetchCatalogModels local fallback error:', error)
   }
 
-  const baseUrl = getRuntimeBackendApiUrl()
   if (!baseUrl) {
     return []
   }
-
-  const url = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
-  url.searchParams.set('brand_id', brand)
-  const payload = await fetchJson(url.toString())
-  return normalizeModelResponse(payload, brand)
+  return []
 }
 
 export const fetchCatalogBodies = async (
@@ -314,6 +334,37 @@ export const fetchCatalogBodies = async (
 ) => {
   if (!brand || !model) {
     return []
+  }
+
+  const baseUrl = getRuntimeBackendApiUrl()
+  if (baseUrl) {
+    try {
+      const filtersUrl = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
+      filtersUrl.searchParams.set('brand_id', brand)
+      filtersUrl.searchParams.set('model_id', model)
+      const filtersPayload = await fetchJson(filtersUrl.toString())
+      const directBodies = normalizeBodyResponse(filtersPayload)
+      if (directBodies.length > 0) {
+        return directBodies
+      }
+    } catch (error) {
+      console.error('fetchCatalogBodies backend filters error:', error)
+    }
+
+    try {
+      const searchUrl = new URL(`${baseUrl.replace(/\/$/, '')}/search`)
+      searchUrl.searchParams.set('brand', brand)
+      searchUrl.searchParams.set('model', model)
+      searchUrl.searchParams.set('limit', '200')
+
+      const payload = await fetchJson(searchUrl.toString())
+      const bodies = buildSearchFallbackBodies(payload)
+      if (bodies.length > 0) {
+        return bodies
+      }
+    } catch (error) {
+      console.error('fetchCatalogBodies backend search error:', error)
+    }
   }
 
   const searchParams = new URLSearchParams()
@@ -337,29 +388,8 @@ export const fetchCatalogBodies = async (
     console.error('fetchCatalogBodies local fallback error:', error)
   }
 
-  const baseUrl = getRuntimeBackendApiUrl()
   if (!baseUrl) {
     return []
   }
-
-  try {
-    const url = new URL(`${baseUrl.replace(/\/$/, '')}/search`)
-    url.searchParams.set('brand', brand)
-    url.searchParams.set('model', model)
-    url.searchParams.set('limit', '200')
-
-    const payload = await fetchJson(url.toString())
-    const bodies = buildSearchFallbackBodies(payload)
-    if (bodies.length > 0) {
-      return bodies
-    }
-  } catch (error) {
-    console.error('fetchCatalogBodies search fallback error:', error)
-  }
-
-  const url = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
-  url.searchParams.set('brand_id', brand)
-  url.searchParams.set('model_id', model)
-  const payload = await fetchJson(url.toString())
-  return normalizeBodyResponse(payload)
+  return []
 }

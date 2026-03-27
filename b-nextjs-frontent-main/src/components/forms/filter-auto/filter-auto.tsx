@@ -52,45 +52,58 @@ const appendQueryString = (pathname: string, searchParams: URLSearchParams) => {
   return query ? `${pathname}?${query}` : pathname
 }
 
+const buildFormDefaultValues = (
+  defaultValues: FilterAutoPropsTypes['defaultValues'] | undefined,
+  pathname: string,
+) => ({
+  make: defaultValues?.make,
+  body: defaultValues?.body,
+  model: defaultValues?.model,
+  rating: defaultValues?.rating,
+  maxYear: defaultValues?.maxYear ? parseInt(defaultValues.maxYear) : undefined,
+  minYear: defaultValues?.minYear ? parseInt(defaultValues.minYear) : undefined,
+  maxEnginePower: defaultValues?.maxEnginePower ? parseInt(defaultValues.maxEnginePower) : undefined,
+  minEnginePower: defaultValues?.minEnginePower ? parseInt(defaultValues.minEnginePower) : undefined,
+  maxMileageKm: defaultValues?.maxMileageKm ? parseInt(defaultValues.maxMileageKm) : undefined,
+  minMileageKm: defaultValues?.minMileageKm ? parseInt(defaultValues.minMileageKm) : undefined,
+  minPrice: defaultValues?.minPrice ? parseInt(defaultValues.minPrice) : undefined,
+  maxPrice: defaultValues?.maxPrice ? parseInt(defaultValues.maxPrice) : undefined,
+  auctionDate: defaultValues?.auctionDate,
+  minGrade: defaultValues?.minGrade,
+  maxGrade: defaultValues?.maxGrade,
+  saleCountry:
+    (defaultValues?.saleCountry as Country) ||
+    CountryPathname.find((e) => pathname.includes(e.pathname))?.country ||
+    CountryPathnameDefault,
+})
+
 export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSearch }) => {
   const pathname = usePathname()
   const router = useRouter()
 
   const form = useForm<any>({
     resolver: zodResolver(filterAutoSchema),
-    defaultValues: {
-      make: defaultValues?.make,
-      body: defaultValues?.body,
-      model: defaultValues?.model,
-      rating: defaultValues?.rating,
-      maxYear: defaultValues?.maxYear ? parseInt(defaultValues.maxYear) : undefined,
-      minYear: defaultValues?.minYear ? parseInt(defaultValues.minYear) : undefined,
-      maxEnginePower: defaultValues?.maxEnginePower
-        ? parseInt(defaultValues.maxEnginePower)
-        : undefined,
-      minEnginePower: defaultValues?.minEnginePower
-        ? parseInt(defaultValues.minEnginePower)
-        : undefined,
-      maxMileageKm: defaultValues?.maxMileageKm ? parseInt(defaultValues.maxMileageKm) : undefined,
-      minMileageKm: defaultValues?.minMileageKm ? parseInt(defaultValues.minMileageKm) : undefined,
-      minPrice: defaultValues?.minPrice ? parseInt(defaultValues.minPrice) : undefined,
-      maxPrice: defaultValues?.maxPrice ? parseInt(defaultValues.maxPrice) : undefined,
-      auctionDate: defaultValues?.auctionDate,
-      minGrade: defaultValues?.minGrade,
-      maxGrade: defaultValues?.maxGrade,
-      saleCountry:
-        (defaultValues?.saleCountry as Country) ||
-        CountryPathname.find((e) => pathname.includes(e.pathname))?.country ||
-        CountryPathnameDefault,
-    },
+    defaultValues: buildFormDefaultValues(defaultValues, pathname),
   })
 
   const selectedMake = form.watch('make')
   const selectedModel = form.watch('model')
   const previousSelectedMakeRef = React.useRef<string | undefined>(defaultValues?.make)
+  const serializedDefaultValues = React.useMemo(
+    () => JSON.stringify(buildFormDefaultValues(defaultValues, pathname)),
+    [defaultValues, pathname],
+  )
 
   const [brandSearchQuery, setBrandSearchQuery] = React.useState('')
   const [modelSearchQuery, setModelSearchQuery] = React.useState('')
+
+  React.useEffect(() => {
+    const nextDefaults = buildFormDefaultValues(defaultValues, pathname)
+    form.reset(nextDefaults)
+    previousSelectedMakeRef.current = nextDefaults.make
+    setBrandSearchQuery('')
+    setModelSearchQuery('')
+  }, [form, pathname, serializedDefaultValues])
 
   const {
     brands,
@@ -208,39 +221,6 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
       })),
     [bodyTypes],
   )
-
-  React.useEffect(() => {
-    if (!defaultValues?.make || !brands.length) return
-
-    const normalizedDefaultMake = toUrlSlug(defaultValues.make)
-    const resolvedBrand = brands.find((brand) => {
-      return (
-        toUrlSlug(brand.brand) === normalizedDefaultMake ||
-        toUrlSlug(brand.brandName) === normalizedDefaultMake
-      )
-    })
-
-    if (resolvedBrand && selectedMake !== resolvedBrand.brand) {
-      form.setValue('make', resolvedBrand.brand)
-    }
-  }, [brands, defaultValues?.make, form, selectedMake])
-
-  React.useEffect(() => {
-    if (!defaultValues?.model || !models.length) return
-
-    const normalizedDefaultModel = toUrlSlug(defaultValues.model)
-    const resolvedModel = models.find((model) => {
-      return (
-        toUrlSlug(model.model) === normalizedDefaultModel ||
-        toUrlSlug(model.modelDisplay) === normalizedDefaultModel ||
-        toUrlSlug(model.modelSlug) === normalizedDefaultModel
-      )
-    })
-
-    if (resolvedModel && selectedModel !== resolvedModel.model) {
-      form.setValue('model', resolvedModel.model)
-    }
-  }, [defaultValues?.model, form, models, selectedModel])
 
   React.useEffect(() => {
     if (resolvedSelectedMake && selectedMake !== resolvedSelectedMake) {

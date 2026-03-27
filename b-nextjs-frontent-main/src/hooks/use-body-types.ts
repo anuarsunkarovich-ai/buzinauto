@@ -8,6 +8,21 @@ export type BodyType = {
   count?: number
 }
 
+const cache = new Map<string, { data: BodyType[]; timestamp: number }>()
+const CACHE_TTL = 5 * 60 * 1000
+
+const getCachedData = (key: string) => {
+  const cached = cache.get(key)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data
+  }
+  return null
+}
+
+const setCachedData = (key: string, data: BodyType[]) => {
+  cache.set(key, { data, timestamp: Date.now() })
+}
+
 export const useBodyTypes = (
   brand: string,
   model: string,
@@ -30,7 +45,15 @@ export const useBodyTypes = (
       setError(null)
 
       try {
+        const cacheKey = `${country}:${brand}:${model}`
+        const cached = getCachedData(cacheKey)
+        if (cached) {
+          setBodyTypes(cached)
+          return
+        }
+
         const bodyTypesArray = await fetchCatalogBodies(brand, model, country)
+        setCachedData(cacheKey, bodyTypesArray)
         setBodyTypes(bodyTypesArray)
       } catch (err) {
         console.error('useBodyTypes error:', err)
