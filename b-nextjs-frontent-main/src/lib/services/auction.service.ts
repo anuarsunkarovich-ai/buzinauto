@@ -52,6 +52,8 @@ export type FastApiSearchCar = {
     rate_source?: string
     bank_buy_rate?: number
     bank_sell_rate?: number
+    duty_exchange_rate?: number
+    duty_rate_source?: string
     usage_type?: string
     user_type?: string
     forced_commercial?: boolean
@@ -79,6 +81,8 @@ type FastApiSearchResponse = {
   exchange_rate?: number
   rate_source?: string
   rate_date?: string
+  duty_exchange_rate?: number
+  duty_rate_source?: string
 }
 
 type SearchCarsResponse = {
@@ -86,6 +90,8 @@ type SearchCarsResponse = {
   exchange_rate?: number
   rate_source?: string
   rate_date?: string
+  duty_exchange_rate?: number
+  duty_rate_source?: string
 }
 
 const normalizeSearchValue = (value: string) =>
@@ -291,5 +297,7 @@ export const searchCars = async ({
     exchange_rate: data.exchange_rate,
     rate_source: data.rate_source,
     rate_date: data.rate_date,
+    duty_exchange_rate: data.duty_exchange_rate,
+    duty_rate_source: data.duty_rate_source,
   }
 }

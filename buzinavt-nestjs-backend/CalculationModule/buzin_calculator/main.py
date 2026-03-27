@@ -24,6 +24,7 @@ from scraper import (
     fetch_aleado_filters,
     fetch_aleado_lot_details,
     fetch_atb_jpy_rate,
+    get_cbr_jpy_rate,
     get_euro_rate,
 )
 
@@ -232,6 +233,8 @@ class AuctionStatsResponse(BaseModel):
     popular_modification: str
     recent_lots: list[RecentLot]
     exchange_rate: float
+    duty_exchange_rate: float | None = None
+    duty_rate_source: str | None = None
     cached: bool
     rate_date: str | None = None
 
@@ -314,9 +317,10 @@ async def search_and_calculate(
     usage_type: str = "private",
     limit: int | None = Query(None, description="Max number of cars to return"),
 ):
-    rates = fetch_atb_jpy_rate()
-    sell_rate = rates["sell"]
-    buy_rate = rates["buy"]
+    atb_rates = fetch_atb_jpy_rate()
+    buy_rate = atb_rates["buy"]
+    sell_rate = atb_rates["sell"]
+    duty_rate = get_cbr_jpy_rate()
     eur_rate = get_euro_rate()
     resolved_brand, resolved_model, model_matched = resolve_aleado_ids(brand, model)
     print(
@@ -412,7 +416,11 @@ async def search_and_calculate(
     semaphore = asyncio.Semaphore(10)
 
     async def enrich_car(
-        car: dict, sell_rate: float, buy_rate: float, eur_rate: float
+        car: dict,
+        duty_rate: float,
+        buy_rate: float,
+        sell_rate: float,
+        eur_rate: float,
     ) -> dict:
         async with semaphore:
             try:
@@ -460,7 +468,7 @@ async def search_and_calculate(
                         engine_volume=engine_cc,
                         horsepower=horsepower,
                         age_category=age_cat,
-                        sell_rate=sell_rate,
+                        duty_rate=duty_rate,
                         buy_rate=buy_rate,
                         eur_rate=eur_rate,
                         usage_type=usage_type,
@@ -494,6 +502,9 @@ async def search_and_calculate(
                     "exchange_rate": buy_rate,
                     "rate_source": "ATB Bank",
                     "bank_buy_rate": buy_rate,
+                    "bank_sell_rate": sell_rate,
+                    "duty_exchange_rate": duty_rate,
+                    "duty_rate_source": "CBR",
                     "usage_type": calculation.effective_usage_type,
                     "user_type": calculation.effective_user_type,
                     "forced_commercial": calculation.forced_commercial,
@@ -524,7 +535,7 @@ async def search_and_calculate(
                 return car
 
     enriched_results = await asyncio.gather(
-        *(enrich_car(car, sell_rate, buy_rate, eur_rate) for car in cars),
+        *(enrich_car(car, duty_rate, buy_rate, sell_rate, eur_rate) for car in cars),
         return_exceptions=True,
     )
     enriched = [c for c in enriched_results if isinstance(c, dict)]
@@ -541,6 +552,8 @@ async def search_and_calculate(
         "results": enriched,
         "exchange_rate": buy_rate,
         "rate_source": "ATB Bank",
+        "duty_exchange_rate": duty_rate,
+        "duty_rate_source": "CBR",
         "rate_date": datetime.now().strftime("%d.%m.%Y"),
     }
 
@@ -577,16 +590,17 @@ def get_auction_filters(
 @app.post("/api/v1/calculate", response_model=CalculationResponse)
 async def calculate_total(request: CalculationRequest) -> CalculationResponse:
     print(f"DEBUG: Received request: {request}")
-    rates = fetch_atb_jpy_rate()
-    sell_rate = rates["sell"]
-    buy_rate = rates["buy"]
+    atb_rates = fetch_atb_jpy_rate()
+    buy_rate = atb_rates["buy"]
+    sell_rate = atb_rates["sell"]
+    duty_rate = get_cbr_jpy_rate()
     calculation = run_total_calculation(
         CalculationContext(
             price_jpy=request.price_jpy,
             engine_volume=request.engine_cc,
             horsepower=request.power_hp,
             age_category=request.age_category,
-            sell_rate=sell_rate,
+            duty_rate=duty_rate,
             buy_rate=buy_rate,
             eur_rate=get_euro_rate(),
             user_type=request.user_type,
@@ -601,6 +615,9 @@ async def calculate_total(request: CalculationRequest) -> CalculationResponse:
         status="success",
         exchange_rate=buy_rate,
         bank_buy_rate=buy_rate,
+        bank_sell_rate=sell_rate,
+        duty_exchange_rate=duty_rate,
+        duty_rate_source="CBR",
         rate_date=datetime.now().strftime("%d.%m.%Y"),
         breakdown=CostBreakdown(
             buy_and_delivery_rub=float(calculation.japan_expenses_rub),
@@ -665,9 +682,9 @@ async def auction_stats(
     brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
 
     # ── Fetch raw lots ────────────────────────────────────────────────────────
-    rates = fetch_atb_jpy_rate()
-    sell_rate = rates["sell"]
-    buy_rate = rates["buy"]
+    atb_rates = fetch_atb_jpy_rate()
+    buy_rate = atb_rates["buy"]
+    duty_rate = get_cbr_jpy_rate()
 
     cars = await asyncio.to_thread(
         fetch_aleado_data,
@@ -746,6 +763,8 @@ async def auction_stats(
             "popular_modification": "",
             "recent_lots": [],
             "exchange_rate": buy_rate,
+            "duty_exchange_rate": duty_rate,
+            "duty_rate_source": "CBR",
             "cached": False,
             "rate_date": datetime.now().strftime("%d.%m.%Y"),
         }
@@ -775,7 +794,7 @@ async def auction_stats(
                 engine_volume=engine_cc,
                 horsepower=hp,
                 age_category=age_cat,
-                sell_rate=sell_rate,
+                duty_rate=duty_rate,
                 buy_rate=buy_rate,
                 eur_rate=get_euro_rate(),
                 usage_type="private",
@@ -866,6 +885,8 @@ async def auction_stats(
             for idx, lot in enumerate(recent_lots)
         ],
         "exchange_rate": buy_rate,
+        "duty_exchange_rate": duty_rate,
+        "duty_rate_source": "CBR",
         "cached": False,
         "rate_date": datetime.now().strftime("%d.%m.%Y"),
     }

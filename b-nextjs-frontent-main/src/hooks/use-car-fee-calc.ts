@@ -16,6 +16,9 @@ export type DialogDetailedCarItem = {
 type FastApiCalculationResponse = {
   exchange_rate?: number
   bank_buy_rate?: number
+  bank_sell_rate?: number
+  duty_exchange_rate?: number
+  duty_rate_source?: string
   rate_date?: string
   total_rub?: number
   breakdown?: {

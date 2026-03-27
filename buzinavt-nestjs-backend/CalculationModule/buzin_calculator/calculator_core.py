@@ -43,7 +43,7 @@ class CalculationContext:
     engine_volume: int
     horsepower: int
     age_category: str
-    sell_rate: float
+    duty_rate: float
     buy_rate: float
     eur_rate: float
     user_type: str = INDIVIDUAL_IMPORTER
@@ -214,10 +214,10 @@ def calculate_customs_duty_rub(
     price_jpy: int,
     engine_volume: int,
     age_category: str,
-    sell_rate: Decimal,
+    duty_rate: Decimal,
     eur_rate: Decimal,
 ) -> tuple[Decimal, Decimal]:
-    auction_rub = _as_decimal(price_jpy) * sell_rate
+    auction_rub = _as_decimal(price_jpy) * duty_rate
     clearance_fee_rub = get_customs_clearance_fee_rub(auction_rub)
     age_years = age_category_to_years(age_category)
 
@@ -310,7 +310,7 @@ def calculate_recycling_fee_rub(
 
 
 def calculate_total(context: CalculationContext) -> CalculationBreakdown:
-    sell_rate = _as_decimal(context.sell_rate)
+    duty_rate = _as_decimal(context.duty_rate)
     buy_rate = _as_decimal(context.buy_rate)
     eur_rate = _as_decimal(context.eur_rate)
     duty_buffer_rub = _as_decimal(max(0.0, float(context.duty_buffer_rub or 0)))
@@ -336,7 +336,7 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
         price_jpy=context.price_jpy,
         engine_volume=context.engine_volume,
         age_category=context.age_category,
-        sell_rate=sell_rate,
+        duty_rate=duty_rate,
         eur_rate=eur_rate,
     )
     excise_rub = calculate_excise_rub(

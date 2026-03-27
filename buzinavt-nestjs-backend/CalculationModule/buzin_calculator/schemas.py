@@ -30,6 +30,9 @@ class CalculationResponse(BaseModel):
     status: str
     exchange_rate: float
     bank_buy_rate: float
+    bank_sell_rate: float | None = None
+    duty_exchange_rate: float | None = None
+    duty_rate_source: str | None = None
     rate_date: str | None = None
     breakdown: CostBreakdown
     total_rub: float

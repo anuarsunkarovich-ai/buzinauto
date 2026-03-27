@@ -13,7 +13,9 @@ from bs4 import BeautifulSoup
 from calculator_core import _as_decimal, quantize_money, ZERO, MONEY_Q
 
 _EUR_CACHE = {"rate": 105.0, "timestamp": 0.0}
+_CBR_JPY_CACHE = {"rate": 0.0, "timestamp": 0.0}
 _ATB_CACHE = {"buy": 0.502, "sell": 0.55, "timestamp": 0.0}
+_CBR_DAILY_CACHE = {"data": None, "timestamp": 0.0}
 _ALEADO_SESSION_CACHE = {"cookies": None, "timestamp": 0.0}
 _FILTER_CACHE: dict[str, dict[str, Any]] = {}
 _AVERAGE_PRICE_CACHE: dict[str, dict[str, Any]] = {}
@@ -23,7 +25,7 @@ _MODIFICATIONS_CACHE: dict[str, dict[str, Any]] = {}
 ALEADO_BASE_URL = "https://auctions.aleado.ru"
 ALEADO_LOGIN_URL = f"{ALEADO_BASE_URL}/auth/login.php"
 ATB_URL = "https://www.atb.su/services/exchange/"
-CBR_EUR_URL = "https://www.cbr-xml-daily.ru/daily_json.js"
+CBR_DAILY_URL = "https://www.cbr-xml-daily.ru/daily_json.js"
 
 ALEADO_USERNAME = os.getenv("ALEADO_USERNAME", "106943767")
 ALEADO_PASSWORD = os.getenv("ALEADO_PASSWORD", "Anuar1234")
@@ -270,16 +272,61 @@ def get_euro_rate() -> float:
     if current_time - _EUR_CACHE["timestamp"] < 3600:
         return float(_EUR_CACHE["rate"])
 
+    payload = _get_cbr_daily_payload()
+    if payload:
+        try:
+            rate = float(payload["Valute"]["EUR"]["Value"])
+            _EUR_CACHE["rate"] = rate
+            _EUR_CACHE["timestamp"] = current_time
+            return rate
+        except Exception as exc:
+            print(f"CBR EUR parse failed: {exc}")
+
+    return float(_EUR_CACHE["rate"])
+
+
+def _get_cbr_daily_payload() -> dict[str, Any] | None:
+    current_time = time.time()
+    cached_payload = _CBR_DAILY_CACHE.get("data")
+    if cached_payload and current_time - _CBR_DAILY_CACHE["timestamp"] < 3600:
+        return cached_payload
+
     try:
-        response = httpx.get(CBR_EUR_URL, timeout=5.0)
+        response = httpx.get(CBR_DAILY_URL, timeout=5.0)
         response.raise_for_status()
-        rate = float(response.json()["Valute"]["EUR"]["Value"])
-        _EUR_CACHE["rate"] = rate
-        _EUR_CACHE["timestamp"] = current_time
-        return rate
+        payload = response.json()
+        _CBR_DAILY_CACHE["data"] = payload
+        _CBR_DAILY_CACHE["timestamp"] = current_time
+        return payload
     except Exception as exc:
-        print(f"CBR EUR fetch failed: {exc}")
-        return float(_EUR_CACHE["rate"])
+        print(f"CBR daily rates fetch failed: {exc}")
+        return cached_payload
+
+
+def get_cbr_jpy_rate() -> float:
+    current_time = time.time()
+    if current_time - _CBR_JPY_CACHE["timestamp"] < 3600 and _CBR_JPY_CACHE["rate"] > 0:
+        return float(_CBR_JPY_CACHE["rate"])
+
+    payload = _get_cbr_daily_payload()
+    if payload:
+        try:
+            jpy_data = payload["Valute"]["JPY"]
+            nominal = float(jpy_data.get("Nominal") or 1.0)
+            value = float(jpy_data["Value"])
+            rate = value / nominal if nominal > 0 else value
+            _CBR_JPY_CACHE["rate"] = rate
+            _CBR_JPY_CACHE["timestamp"] = current_time
+            return rate
+        except Exception as exc:
+            print(f"CBR JPY parse failed: {exc}")
+
+    if _CBR_JPY_CACHE["rate"] > 0:
+        return float(_CBR_JPY_CACHE["rate"])
+
+    fallback_rate = float(fetch_atb_jpy_rate()["buy"])
+    print(f"CBR JPY rate unavailable, falling back to ATB buy rate: {fallback_rate}")
+    return fallback_rate
 
 
 def fetch_atb_jpy_rate() -> dict[str, float]:
