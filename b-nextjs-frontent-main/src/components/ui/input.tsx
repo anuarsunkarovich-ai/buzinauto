@@ -33,19 +33,25 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
 }
 
 function InputNumber({
+  onChange,
   onValue,
   ...props
-}: React.ComponentProps<'input'> & { onValue?: (value: number) => void | Promise<void> }) {
+}: React.ComponentProps<'input'> & {
+  onValue?: (value: number | undefined) => void | Promise<void>
+}) {
   const inputValueToNumber = React.useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      onChange?.(e)
+
       if (typeof onValue !== 'undefined') {
-        onValue(stringToNumber(e.target.value))
+        const nextValue = e.target.value.trim()
+        onValue(nextValue ? stringToNumber(nextValue) : undefined)
       }
     },
-    [onValue],
+    [onChange, onValue],
   )
 
-  return <Input onChange={inputValueToNumber} {...props} />
+  return <Input {...props} onChange={inputValueToNumber} />
 }
 
 export { Input, InputNumber }

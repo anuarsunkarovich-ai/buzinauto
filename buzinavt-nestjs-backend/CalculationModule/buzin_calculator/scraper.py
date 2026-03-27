@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 from datetime import datetime, timedelta
+import html
 import os
 import re
 import time
@@ -976,11 +977,101 @@ def _extract_photo_urls_from_detail(detail_soup: BeautifulSoup) -> list[str]:
     return image_urls
 
 
-def _extract_calc_src_from_detail(detail_soup: BeautifulSoup) -> str:
-    calc_frame = detail_soup.find("iframe", attrs={"id": "calc_frame"})
-    if not calc_frame:
+def _normalize_calc_url(url: str) -> str:
+    normalized_url = html.unescape((url or "").strip()).strip('"').strip("'")
+    if not normalized_url:
         return ""
-    return _absolute_aleado_url((calc_frame.get("src") or "").strip())
+    if normalized_url.startswith("//"):
+        return f"https:{normalized_url}"
+    return _absolute_aleado_url(normalized_url)
+
+
+def _extract_horsepower_from_detail_text(detail_soup: BeautifulSoup) -> int:
+    if not detail_soup:
+        return 0
+
+    detail_text = html.unescape(detail_soup.get_text(" ", strip=True) or "")
+    if not detail_text:
+        return 0
+
+    patterns = (
+        r"(?:мощность|л\.?\s*с\.?|лошадиных\s+сил)\s*[:\-]?\s*(\d{2,4})",
+        r"(?:馬力)\s*[:\-]?\s*(\d{2,4})",
+        r"(\d{2,4})\s*(?:ps|hp|bhp)\b",
+    )
+
+    for pattern in patterns:
+        match = re.search(pattern, detail_text, re.IGNORECASE)
+        if not match:
+            continue
+
+        horsepower = _extract_first_number(match.group(1))
+        if 40 <= horsepower <= 1200:
+            return horsepower
+
+    return 0
+
+
+def _extract_calc_src_from_detail(detail_soup: BeautifulSoup) -> str:
+    if not detail_soup:
+        return ""
+
+    attr_candidates = (
+        ("iframe", "src"),
+        ("iframe", "data-src"),
+        ("iframe", "data-url"),
+        ("a", "href"),
+        ("form", "action"),
+    )
+
+    for tag_name, attr_name in attr_candidates:
+        for node in detail_soup.find_all(tag_name):
+            raw_value = (node.get(attr_name) or "").strip()
+            normalized_value = _normalize_calc_url(raw_value)
+            if not normalized_value:
+                continue
+            lowered_value = normalized_value.lower()
+            if "/newcalc" in lowered_value or ("model_id=" in lowered_value and "year=" in lowered_value):
+                return normalized_value
+
+    raw_html = html.unescape(str(detail_soup))
+    url_match = re.search(
+        r"((?:https?:)?//[^\"'\s>]+/newcalc[^\"'\s>]*)",
+        raw_html,
+        re.IGNORECASE,
+    )
+    if url_match:
+        return _normalize_calc_url(url_match.group(1))
+
+    relative_match = re.search(
+        r"(/newcalc[^\"'\s>]*)",
+        raw_html,
+        re.IGNORECASE,
+    )
+    if relative_match:
+        return _normalize_calc_url(relative_match.group(1))
+
+    extracted_params: dict[str, str] = {}
+    for key in ("model_id", "year", "model_type", "disp"):
+        param_match = re.search(
+            rf"{key}\s*[:=]\s*[\"']?([^\"'&\s<>,]+)",
+            raw_html,
+            re.IGNORECASE,
+        )
+        if param_match:
+            extracted_params[key] = param_match.group(1).strip()
+
+    model_id = extracted_params.get("model_id", "").strip()
+    year = extracted_params.get("year", "").strip()
+    if model_id and year:
+        query = "&".join(
+            f"{key}={value}"
+            for key, value in extracted_params.items()
+            if value
+        )
+        return f"{ALEADO_BASE_URL}/newcalc?{query}"
+
+    return ""
 
 
 def _reorder_image_urls(image_urls: list[str], detail_soup: BeautifulSoup, auction_sheet_url: str | None = None) -> list[str]:
@@ -1196,6 +1287,63 @@ def _find_horsepower_from_calc_src(calc_src: str) -> int:
     return int(modifications[0].get("horsepower") or 0)
 
 
+def infer_horsepower_from_identifiers(
+    *,
+    model_code: str = "",
+    body: str = "",
+    modification: str = "",
+    model_display: str = "",
+    model: str = "",
+    engine_cc: int = 0,
+) -> int:
+    normalized_model_code = _normalize(model_code)
+    normalized_text = " ".join(
+        filter(
+            None,
+            [
+                _normalize(model_code),
+                _normalize(body),
+                _normalize(modification),
+                _normalize(model_display),
+                _normalize(model),
+            ],
+        )
+    )
+
+    exact_model_code_map = {
+        "fn2": 201,
+        "fd2": 225,
+        "fk7": 182,
+        "fc1": 173,
+        "fk8": 320,
+        "fl1": 182,
+        "fl4": 184,
+        "fl5": 330,
+    }
+
+    if normalized_model_code in exact_model_code_map:
+        return exact_model_code_map[normalized_model_code]
+
+    if "typereuro" in normalized_text and 1800 <= engine_cc <= 2200:
+        return 201
+    if "fd2" in normalized_text and "typer" in normalized_text:
+        return 225
+    if "fk8" in normalized_text and "typer" in normalized_text:
+        return 320
+    if "fl5" in normalized_text and "typer" in normalized_text:
+        return 330
+    if "fk7" in normalized_text and 1300 <= engine_cc <= 1700:
+        return 182
+    if "fc1" in normalized_text and 1300 <= engine_cc <= 1700:
+        return 173
+    if "fl1" in normalized_text and 1300 <= engine_cc <= 1700:
+        return 182
+    if "fl4" in normalized_text and ("ehev" in normalized_text or "hybrid" in normalized_text):
+        return 184
+
+    return 0
+
+
 def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
     if not detail_link:
         return {
@@ -1221,6 +1369,8 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
         image_urls = _extract_photo_urls_from_detail(detail_soup)
         calc_src = _extract_calc_src_from_detail(detail_soup)
         horsepower = _find_horsepower_from_calc_src(calc_src)
+        if horsepower <= 0:
+            horsepower = _extract_horsepower_from_detail_text(detail_soup)
         average_args = _extract_average_price_args(detail_response.text)
         if average_price <= 0 and len(average_args) >= 9:
             average_html = call_aleado_sajax("getAveragePrice", average_args, path=path)

@@ -198,6 +198,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
           model: values.model ? String(values.model) : undefined,
           body: values.body ? String(values.body) : undefined,
           auctionDate: values.auctionDate ? String(values.auctionDate) : undefined,
+          rating: values.rating ? String(values.rating) : undefined,
           minGrade: values.minGrade ? String(values.minGrade) : undefined,
           maxGrade: values.maxGrade ? String(values.maxGrade) : undefined,
           minYear: typeof values.minYear === 'number' ? values.minYear : undefined,

@@ -26,6 +26,7 @@ from scraper import (
     fetch_atb_jpy_rate,
     get_cbr_jpy_rate,
     get_euro_rate,
+    infer_horsepower_from_identifiers,
 )
 
 app = FastAPI(title="Buzinavto Calc API")
@@ -84,6 +85,25 @@ def _matches_body_filter(body_filter: str, *candidates: str) -> bool:
             return True
 
     return False
+
+
+def _resolve_car_horsepower(car: dict, detail_hp: int = 0) -> int:
+    horsepower = detail_hp or int(_safe_number(car.get("horsepower") or 0))
+    if horsepower > 0:
+        return horsepower
+
+    inferred_horsepower = infer_horsepower_from_identifiers(
+        model_code=str(car.get("model_code") or ""),
+        body=str(car.get("body") or ""),
+        modification=str(car.get("modification") or ""),
+        model_display=str(car.get("modelDisplay") or ""),
+        model=str(car.get("model") or ""),
+        engine_cc=int(_safe_number(car.get("engine_cc") or 0)),
+    )
+    if inferred_horsepower > 0:
+        return inferred_horsepower
+
+    return estimate_horsepower(int(_safe_number(car.get("engine_cc") or 0)))
 
 
 def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
@@ -443,9 +463,7 @@ async def search_and_calculate(
                     if details.get("horsepower")
                     else 0
                 )
-                horsepower = detail_hp or int(_safe_number(car.get("horsepower") or 0))
-                if horsepower <= 0:
-                    horsepower = estimate_horsepower(engine_cc)
+                horsepower = _resolve_car_horsepower(car, detail_hp)
 
                 average_price_jpy = int(
                     _safe_number(details.get("average_price_jpy") or 0)
@@ -779,9 +797,7 @@ async def auction_stats(
         lot_price_jpy = _to_int_price(c.get("price_jpy", 0))
         prices_jpy.append(lot_price_jpy)
         engine_cc = int(c.get("engine_cc") or 1500)
-        hp = int(_safe_number(c.get("horsepower")))
-        if hp <= 0:
-            hp = estimate_horsepower(engine_cc)
+        hp = _resolve_car_horsepower(c)
 
         current_year = date.today().year
         car_year = int(c["year"]) if str(c.get("year")).isdigit() else current_year - 4
@@ -834,11 +850,7 @@ async def auction_stats(
             model=str(c.get("model") or model_name),
             year=str(c.get("year") or ""),
             engine_cc=str(c.get("engine_cc") or ""),
-            horsepower=(
-                int(_safe_number(c.get("horsepower")))
-                if int(_safe_number(c.get("horsepower"))) > 0
-                else estimate_horsepower(int(_safe_number(c.get("engine_cc"))))
-            ),
+            horsepower=_resolve_car_horsepower(c),
             mileage=str(c.get("mileage") or ""),
             grade=str(c.get("grade") or c.get("rating") or ""),
             price_jpy=_to_int_price(c.get("price_jpy", 0)),

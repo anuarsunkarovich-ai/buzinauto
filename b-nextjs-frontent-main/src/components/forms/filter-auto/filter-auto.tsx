@@ -583,10 +583,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                 <InputNumber
                   className="select-none"
                   placeholder="Минимальный год..."
-                  onChange={(value) => {
+                  onValue={(value) => {
                     field.onChange(value)
                   }}
-                  value={field.value}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />
@@ -604,10 +604,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                 <InputNumber
                   className="select-none"
                   placeholder="Максимальный год..."
-                  onChange={(value) => {
+                  onValue={(value) => {
                     field.onChange(value)
                   }}
-                  value={field.value}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />
@@ -625,10 +625,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                 <InputNumber
                   className="select-none"
                   placeholder="Минимальный объем двигателя..."
-                  onChange={(value) => {
+                  onValue={(value) => {
                     field.onChange(value)
                   }}
-                  value={field.value}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />
@@ -646,10 +646,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                 <InputNumber
                   className="select-none"
                   placeholder="Максимальный объем двигателя..."
-                  onChange={(value) => {
+                  onValue={(value) => {
                     field.onChange(value)
                   }}
-                  value={field.value}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />
@@ -667,10 +667,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                 <InputNumber
                   className="select-none"
                   placeholder="Минимальный пробег..."
-                  onChange={(value) => {
+                  onValue={(value) => {
                     field.onChange(value)
                   }}
-                  value={field.value}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />
@@ -688,10 +688,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                 <InputNumber
                   className="select-none"
                   placeholder="Максимальный пробег..."
-                  onChange={(value) => {
+                  onValue={(value) => {
                     field.onChange(value)
                   }}
-                  value={field.value}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />
@@ -709,10 +709,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                 <InputNumber
                   className="select-none"
                   placeholder="Минимальная цена..."
-                  onChange={(value) => {
+                  onValue={(value) => {
                     field.onChange(value)
                   }}
-                  value={field.value}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />
@@ -730,10 +730,10 @@ export const FilterAuto: React.FC<FilterAutoPropsTypes> = ({ defaultValues, onSe
                 <InputNumber
                   className="select-none"
                   placeholder="Максимальная цена..."
-                  onChange={(value) => {
+                  onValue={(value) => {
                     field.onChange(value)
                   }}
-                  value={field.value}
+                  value={field.value ?? ''}
                 />
               </FormControl>
               <FormMessage />
