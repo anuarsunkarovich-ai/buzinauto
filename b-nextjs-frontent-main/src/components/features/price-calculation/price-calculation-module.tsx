@@ -36,6 +36,7 @@ type CalculationResponse = {
   total_rub?: number
   breakdown?: {
     buy_and_delivery_rub?: number
+    buy_and_delivery_jpy?: number
     customs_broker_rub?: number
     customs_duty_rub?: number
     util_fee_rub?: number
@@ -132,7 +133,7 @@ export const PriceCalculationModule: React.FC = () => {
   const [engineStr, setEngineStr] = React.useState('1415')
   const [hpStr, setHpStr] = React.useState('150')
   const [fuelType, setFuelType] = React.useState('gasoline')
-  const [usageType, setUsageType] = React.useState<'commercial' | 'private'>('commercial')
+  const [usageType, setUsageType] = React.useState<'commercial' | 'private'>('private')
   const [result, setResult] = React.useState<CalculationResponse | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -159,6 +160,7 @@ export const PriceCalculationModule: React.FC = () => {
         engine_cc: Math.max(0, engineCc),
         power_hp: Math.max(0, horsepower),
         age_category: getAgeCategory(currentYear - year),
+        engine_type: fuelType,
         usage_type: usageType,
       })
       setResult(response.data)

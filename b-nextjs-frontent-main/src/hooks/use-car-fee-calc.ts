@@ -23,6 +23,7 @@ type FastApiCalculationResponse = {
   total_rub?: number
   breakdown?: {
     buy_and_delivery_rub?: number
+    buy_and_delivery_jpy?: number
     customs_broker_rub?: number
     customs_duty_rub?: number
     util_fee_rub?: number
@@ -53,6 +54,7 @@ const buildCalculationCacheKey = (
   enginePower: number,
   horsepower: number,
   carAge: number,
+  engineType: EngineType,
   usageType: UsageType,
 ) =>
   [
@@ -60,6 +62,7 @@ const buildCalculationCacheKey = (
     Math.max(0, Math.round(Number(enginePower))),
     Math.max(0, Math.round(Number(horsepower || 150))),
     getAgeCategory(carAge),
+    engineType,
     usageType,
   ].join(':')
 
@@ -68,15 +71,24 @@ const requestCalculation = async ({
   enginePower,
   horsepower,
   carAge,
+  engineType,
   usageType,
 }: {
   price: number
   enginePower: number
   horsepower: number
   carAge: number
+  engineType: EngineType
   usageType: UsageType
 }) => {
-  const cacheKey = buildCalculationCacheKey(price, enginePower, horsepower, carAge, usageType)
+  const cacheKey = buildCalculationCacheKey(
+    price,
+    enginePower,
+    horsepower,
+    carAge,
+    engineType,
+    usageType,
+  )
   const cachedResponse = calculationResponseCache.get(cacheKey)
   if (cachedResponse) {
     return cachedResponse
@@ -95,6 +107,7 @@ const requestCalculation = async ({
         engine_cc: Math.max(0, Math.round(Number(enginePower))),
         power_hp: Math.max(0, Math.round(Number(horsepower || 150))),
         age_category: getAgeCategory(carAge),
+        engine_type: engineType,
         usage_type: usageType,
       },
       {
@@ -135,6 +148,7 @@ export const useCarFeeCalc = (car: any, usageType: UsageType = 'private') => {
           enginePower: Number(car.enginePower),
           horsepower: Number(car.horsepower || 150),
           carAge: new Date().getFullYear() - Number(car.year || 0),
+          engineType: car.engineType || 'gasoline',
           usageType,
         })
         const mappedFees = {
@@ -177,6 +191,7 @@ type UseCarFeeFuncEnumResult = {
   calculator: (row: CalculatorRow) => number
   currencyPriceList: DialogDetailedCarItem[]
   commercialRate?: number
+  buyAndDeliveryJpy?: number
   bankBuyRate?: number
   bankSellRate?: number
   rateDate?: string
@@ -214,6 +229,7 @@ export function useCarFeeFuncEnum(
           enginePower,
           horsepower,
           carAge,
+          engineType,
           usageType,
         })
 
@@ -290,11 +306,12 @@ export function useCarFeeFuncEnum(
     calculator,
     currencyPriceList,
     commercialRate,
+    buyAndDeliveryJpy: result?.breakdown?.buy_and_delivery_jpy,
     bankBuyRate: result?.bank_buy_rate,
     bankSellRate: result?.bank_sell_rate,
     rateDate: result?.rate_date,
     auctionPrice: () => Math.round(Number(price || 0) * exchangeRate),
-    deliveryPrice: () => 0,
+    deliveryPrice: () => Math.round(breakdown?.buy_and_delivery_rub || 0),
     dutyPrice: () => Math.round(breakdown?.customs_duty_rub || 0),
     calculateClearanceFee: () => Math.round(breakdown?.customs_broker_rub || 0),
     calculateCustomsDuty: () => Math.round(breakdown?.customs_duty_rub || 0),

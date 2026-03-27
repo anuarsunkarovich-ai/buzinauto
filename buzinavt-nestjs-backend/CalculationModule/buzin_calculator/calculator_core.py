@@ -8,7 +8,6 @@ from typing import Any
 
 from config import (
     BASE_UTIL_FEE_RUB,
-    COMMERCIAL_TRIGGER_HORSEPOWER,
     COMMERCIAL_USAGE,
     CUSTOMS_BROKER_RUB,
     CUSTOMS_CLEARANCE_FEES_RUB,
@@ -16,7 +15,6 @@ from config import (
     DUTY_RATES_3_TO_5,
     DUTY_RATES_5_PLUS,
     DUTY_RATES_NEW,
-    ELECTRIC_PREFERENTIAL_TRIGGER_HORSEPOWER,
     EXCISE_RATES_BY_YEAR,
     HP_TO_KW,
     INDIVIDUAL_ELECTRIC_BRACKETS,
@@ -57,6 +55,7 @@ class CalculationContext:
 class CalculationBreakdown:
     auction_rub: Decimal
     japan_expenses_rub: Decimal
+    japan_expenses_jpy: int
     customs_broker_rub: Decimal
     customs_duty_rub: Decimal
     customs_processing_fee_rub: Decimal
@@ -158,11 +157,7 @@ def is_electric_engine(engine_type: str | None) -> bool:
 
 
 def should_force_commercial(engine_type: str, horsepower: int) -> bool:
-    if horsepower <= 0:
-        return False
-    if is_electric_engine(engine_type):
-        return horsepower > ELECTRIC_PREFERENTIAL_TRIGGER_HORSEPOWER
-    return horsepower > COMMERCIAL_TRIGGER_HORSEPOWER
+    return False
 
 
 def resolve_effective_modes(
@@ -191,6 +186,12 @@ def get_customs_clearance_fee_rub(car_price_rub: Decimal) -> Decimal:
         if car_price_rub < _as_decimal(upper_bound):
             return fee
     return CUSTOMS_CLEARANCE_FEE_MAX_RUB
+
+
+def get_customs_broker_rub(engine_volume: int) -> Decimal:
+    if engine_volume > 2000:
+        return Decimal("85000")
+    return CUSTOMS_BROKER_RUB
 
 
 def get_new_car_duty_rub(car_price_rub: Decimal, engine_volume: int, eur_rate: Decimal) -> Decimal:
@@ -361,10 +362,12 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
         horsepower=context.horsepower,
     )
 
+    customs_broker_rub = get_customs_broker_rub(context.engine_volume)
+
     total_rub = quantize_money(
         auction_rub
         + japan_expenses_rub
-        + CUSTOMS_BROKER_RUB
+        + customs_broker_rub
         + customs_duty_rub
         + util_fee_rub
     )
@@ -372,7 +375,8 @@ def calculate_total(context: CalculationContext) -> CalculationBreakdown:
     return CalculationBreakdown(
         auction_rub=auction_rub,
         japan_expenses_rub=japan_expenses_rub,
-        customs_broker_rub=CUSTOMS_BROKER_RUB,
+        japan_expenses_jpy=int(japan_expenses_jpy),
+        customs_broker_rub=customs_broker_rub,
         customs_duty_rub=customs_duty_rub,
         customs_processing_fee_rub=customs_processing_fee_rub,
         excise_rub=excise_rub,

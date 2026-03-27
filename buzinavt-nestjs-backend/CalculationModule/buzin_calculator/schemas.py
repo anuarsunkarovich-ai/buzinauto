@@ -14,6 +14,7 @@ class CalculationRequest(BaseModel):
 
 class CostBreakdown(BaseModel):
     buy_and_delivery_rub: float = 0
+    buy_and_delivery_jpy: int = 0
     customs_broker_rub: float = 0
     customs_duty_rub: float = 0
     customs_processing_fee_rub: float = 0

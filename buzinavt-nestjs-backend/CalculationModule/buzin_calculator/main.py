@@ -16,7 +16,7 @@ from calculator_core import (
     calculate_total as run_total_calculation,
     estimate_horsepower,
 )
-from config import CUSTOMS_BROKER_RUB, SVH_TRANSPORT_RUB
+from config import SVH_TRANSPORT_RUB
 from schemas import CalculationRequest, CalculationResponse, CostBreakdown
 from scraper import (
     fetch_aleado_average_price,
@@ -104,6 +104,13 @@ def _resolve_car_horsepower(car: dict, detail_hp: int = 0) -> int:
         return inferred_horsepower
 
     return estimate_horsepower(int(_safe_number(car.get("engine_cc") or 0)))
+
+
+def _build_lot_identity(car: dict) -> str:
+    lot = str(car.get("lot") or "").strip()
+    auction_date = str(car.get("auction_date") or "").strip()
+    detail_link = str(car.get("detail_link") or "").strip()
+    return "::".join(part for part in [lot, auction_date, detail_link] if part)
 
 
 def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
@@ -226,6 +233,7 @@ class RecentLot(BaseModel):
     grade: str
     price_jpy: int
     price_rub: float
+    total_rub: float | None = None
     image_url: str
     auction_date: str
     color: str
@@ -509,7 +517,8 @@ async def search_and_calculate(
                     "lot_price_jpy": lot_price_jpy,
                     "average_price_jpy": average_price_jpy,
                     "buy_and_delivery_rub": float(calculation.japan_expenses_rub),
-                    "customs_broker_rub": float(CUSTOMS_BROKER_RUB),
+                    "buy_and_delivery_jpy": calculation.japan_expenses_jpy,
+                    "customs_broker_rub": float(calculation.customs_broker_rub),
                     "customs_duty_rub": float(calculation.customs_duty_rub),
                     "customs_processing_fee_rub": float(
                         calculation.customs_processing_fee_rub
@@ -526,6 +535,7 @@ async def search_and_calculate(
                     "usage_type": calculation.effective_usage_type,
                     "user_type": calculation.effective_user_type,
                     "forced_commercial": calculation.forced_commercial,
+                    "total_rub": float(calculation.total_rub),
                 }
                 car["brand"] = car.get("brand") or brand_name
                 car["model"] = car.get("model") or model_name
@@ -639,6 +649,7 @@ async def calculate_total(request: CalculationRequest) -> CalculationResponse:
         rate_date=datetime.now().strftime("%d.%m.%Y"),
         breakdown=CostBreakdown(
             buy_and_delivery_rub=float(calculation.japan_expenses_rub),
+            buy_and_delivery_jpy=calculation.japan_expenses_jpy,
             customs_broker_rub=float(calculation.customs_broker_rub),
             customs_duty_rub=float(calculation.customs_duty_rub),
             customs_processing_fee_rub=float(calculation.customs_processing_fee_rub),
@@ -792,6 +803,7 @@ async def auction_stats(
     # ── Aggregate stats ───────────────────────────────────────────────────────
     # Use same calculator math as search_and_calculate to compute real RUB totals
     total_rub_list: list[float] = []
+    total_rub_by_lot: dict[str, float] = {}
     prices_jpy = []
     for c in priced:
         lot_price_jpy = _to_int_price(c.get("price_jpy", 0))
@@ -819,7 +831,9 @@ async def auction_stats(
                 year=current_year,
             )
         )
-        total_rub_list.append(float(calculation.total_rub))
+        calculated_total_rub = float(calculation.total_rub)
+        total_rub_list.append(calculated_total_rub)
+        total_rub_by_lot[_build_lot_identity(c)] = calculated_total_rub
 
     avg_jpy = int(sum(prices_jpy) / len(prices_jpy))
     min_jpy = min(prices_jpy)
@@ -854,7 +868,20 @@ async def auction_stats(
             mileage=str(c.get("mileage") or ""),
             grade=str(c.get("grade") or c.get("rating") or ""),
             price_jpy=_to_int_price(c.get("price_jpy", 0)),
-            price_rub=round(_to_int_price(c.get("price_jpy", 0)) * commercial_rate, 2),
+            price_rub=round(
+                total_rub_by_lot.get(
+                    _build_lot_identity(c),
+                    _to_int_price(c.get("price_jpy", 0)) * commercial_rate,
+                ),
+                2,
+            ),
+            total_rub=round(
+                total_rub_by_lot.get(
+                    _build_lot_identity(c),
+                    _to_int_price(c.get("price_jpy", 0)) * commercial_rate,
+                ),
+                2,
+            ),
             image_url=str(c.get("image_url") or ""),
             auction_date=str(c.get("auction_date") or ""),
             color=str(c.get("color") or ""),
@@ -886,16 +913,7 @@ async def auction_stats(
         },
         "grade_distribution": grade_dist,
         "popular_modification": popular_modification,
-        # Replace price_rub for recent lots with calculated total_rub when available
-        "recent_lots": [
-            dict(
-                lot.model_dump(),
-                price_rub=round(total_rub_list[idx], 2)
-                if idx < len(total_rub_list)
-                else lot.price_rub,
-            )
-            for idx, lot in enumerate(recent_lots)
-        ],
+        "recent_lots": [lot.model_dump() for lot in recent_lots],
         "exchange_rate": commercial_rate,
         "duty_exchange_rate": duty_rate,
         "duty_rate_source": "CBR",

@@ -49,16 +49,14 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
     defaultDeliveryCity ?? currentCity?.id,
   )
 
-  const { totalRubAmount, calculator, currencyPriceList, commercialRate, rateDate } =
-    useCarFeeFuncEnum(
-      carPrice,
-      currency,
-      engineType,
-      enginePower,
-      horsepower,
-      carAge,
-      'private',
-    )
+  const {
+    totalRubAmount,
+    calculator,
+    currencyPriceList,
+    commercialRate,
+    buyAndDeliveryJpy,
+    rateDate,
+  } = useCarFeeFuncEnum(carPrice, currency, engineType, enginePower, horsepower, carAge, 'private')
 
   const { setCurrentCity, currentCity: userCity } = useCity()
 
@@ -166,6 +164,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
               const moneyRub = calculator(row)
               if (!moneyRub) return
               const isAuctionPriceRow = row.callToMoney === 'AUCTION_PRICE'
+              const isJapanExpensesRow = row.callToMoney === 'AUCTION_DELIVERY'
 
               return (
                 <TableRow key={i}>
@@ -197,6 +196,11 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
                             </Text>
                           )}
                         </>
+                      )}
+                      {isJapanExpensesRow && (buyAndDeliveryJpy || 0) > 0 && (
+                        <Text as="small" className="text-muted-foreground">
+                          {Number(buyAndDeliveryJpy).toLocaleString('ru-RU')} Â¥
+                        </Text>
                       )}
                     </div>
                   </TableCell>
