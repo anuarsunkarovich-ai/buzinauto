@@ -57,17 +57,14 @@ export class CarFeeImportCalcService {
     carAge: number,
     eurRate: number,
   ) {
-    // Для новых автомобилей (до 3 лет) - по новой таблице ставок
     if (carAge <= 3) {
       return this.calculateNewCarDuty(carPiceRub, enginePower, eurRate)
     }
 
-    // Для автомобилей 3-5 лет - только по объему двигателя
     if (carAge > 3 && carAge <= 5) {
       return this._calculateDutyByVolumeRange(enginePower, this.config.dutyRates3to5, eurRate)
     }
 
-    // Для автомобилей старше 5 лет - по объему двигателя
     if (carAge > 5) {
       return this._calculateDutyByVolumeRange(enginePower, this.config.dutyRates5plus, eurRate)
     }
@@ -79,7 +76,6 @@ export class CarFeeImportCalcService {
     const carValueEur = carPriceRub / eurRate
     let dutyRate
 
-    // Определяем диапазон стоимости и соответствующие ставки
     if (carValueEur <= 8500) {
       dutyRate = this.config.dutyRatesNew['0-8500']
     } else if (carValueEur <= 16700) {
@@ -94,11 +90,9 @@ export class CarFeeImportCalcService {
       dutyRate = this.config.dutyRatesNew['169000+']
     }
 
-    // Рассчитываем пошлину по проценту и по минимальной ставке
     const percentageDuty = carPriceRub * dutyRate.percent
     const volumeDuty = engineVolume * dutyRate.minRate * eurRate
 
-    // Возвращаем большую из двух сумм
     return Math.max(percentageDuty, volumeDuty)
   }
 
@@ -126,41 +120,18 @@ export class CarFeeImportCalcService {
     return engineVolume * rate * eurRate
   }
 
-  /**
-   * Обновленные ставки 2025 года в зависимости от стоимости
-   * @param carValue
-   * @returns
-   */
+  // Customs processing fee table effective January 1, 2026.
   public calculateClearanceFee(carPiceRub: number) {
-    // Обновленные ставки таможенного сбора 2025 года
-    if (carPiceRub < 200000) return 1067
-    if (carPiceRub < 450000) return 2134
-    if (carPiceRub < 1200000) return 4269
-    if (carPiceRub < 2700000) return 11746
-    if (carPiceRub < 4200000) return 16524
+    if (carPiceRub < 200000) return 1231
+    if (carPiceRub < 450000) return 2462
+    if (carPiceRub < 1200000) return 4924
+    if (carPiceRub < 2700000) return 13541
+    if (carPiceRub < 4200000) return 18465
     if (carPiceRub < 5500000) return 21344
-    if (carPiceRub < 7000000) return 27540
-    if (carPiceRub < 10000000) return 30000
-    return 30000 // для авто дороже 10 млн
+    if (carPiceRub < 10000000) return 49240
+    return 73860
   }
 
-  /**
-   * Утилизационный сбор (обновлённый расчёт с 01.12.2025)
-   *
-   * С 2025 года коэффициенты зависят от:
-   * - типа импортёра (физлицо / юрлицо)
-   * - типа двигателя (электро / ДВС)
-   * - объёма двигателя (см³)
-   * - мощности двигателя (кВт) — опционально, оценивается по объёму
-   * - возраста авто (новый ≤3 лет / б/у >3 лет)
-   * - года расчёта (автоматическая индексация до 2030+)
-   *
-   * @param importerType  — «individual» или «legal»
-   * @param engineType    — тип двигателя
-   * @param engineVolume  — объём двигателя в см³ (0 для электромобилей)
-   * @param carAge        — возраст авто в годах
-   * @param enginePowerKw — мощность в кВт (опционально; если не указана — оценивается по объёму)
-   */
   public calculateRecyclingFee(
     importerType: ImporterType,
     engineType: EngineType,

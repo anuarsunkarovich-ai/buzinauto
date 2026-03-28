@@ -11,7 +11,13 @@ from urllib.parse import parse_qsl, urljoin, urlparse
 from decimal import Decimal, ROUND_HALF_UP
 import httpx
 from bs4 import BeautifulSoup
-from calculator_core import _as_decimal, quantize_money, ZERO, MONEY_Q
+from calculator_core import (
+    MONEY_Q,
+    ZERO,
+    _as_decimal,
+    get_customs_clearance_fee_rub,
+    quantize_money,
+)
 
 _EUR_CACHE = {"rate": 105.0, "timestamp": 0.0}
 _CBR_JPY_CACHE = {"rate": 0.0, "timestamp": 0.0}
@@ -471,7 +477,9 @@ def calculate_customs_phys_person(
             coef = 3.6
 
     duty_rub = engine_cc * coef * eur_rate
-    processing_fee = 2462
+    processing_fee = int(
+        get_customs_clearance_fee_rub(_as_decimal(price_jpy) * _as_decimal(rate_jpy_rub))
+    )
     util_fee = calculate_private_util_fee(age_category)
 
     return {

@@ -170,7 +170,7 @@ export const PriceCalculationModule: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [auctionPriceJpy, engineCc, horsepower, year, currentYear, usageType])
+  }, [auctionPriceJpy, engineCc, horsepower, year, currentYear, usageType, fuelType])
 
   // Auto-calculate on mount and input changes
   React.useEffect(() => {

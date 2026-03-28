@@ -17,16 +17,15 @@ PRIVATE_USAGE = "private"
 COMMERCIAL_USAGE = "commercial"
 
 CUSTOMS_CLEARANCE_FEES_RUB: tuple[tuple[int, Decimal], ...] = (
-    (200000, Decimal("1067")),
-    (450000, Decimal("2134")),
-    (1200000, Decimal("4269")),
-    (2700000, Decimal("11746")),
-    (4200000, Decimal("16524")),
+    (200000, Decimal("1231")),
+    (450000, Decimal("2462")),
+    (1200000, Decimal("4924")),
+    (2700000, Decimal("13541")),
+    (4200000, Decimal("18465")),
     (5500000, Decimal("21344")),
-    (7000000, Decimal("27540")),
-    (10000000, Decimal("30000")),
+    (10000000, Decimal("49240")),
 )
-CUSTOMS_CLEARANCE_FEE_MAX_RUB = Decimal("30000")
+CUSTOMS_CLEARANCE_FEE_MAX_RUB = Decimal("73860")
 
 DUTY_RATES_NEW: tuple[tuple[Decimal, Decimal, Decimal], ...] = (
     (Decimal("8500"), Decimal("0.54"), Decimal("2.5")),
@@ -211,13 +210,37 @@ INDIVIDUAL_ICE_TABLE: tuple[VolumeCategory, ...] = (
     (
         2000,
         (
-            (Decimal("999999"), PREFERENTIAL_SENTINEL, PREFERENTIAL_SENTINEL),
+            (Decimal("117.68"), PREFERENTIAL_SENTINEL, PREFERENTIAL_SENTINEL),
+            (Decimal("139.75"), Decimal("37.5"), Decimal("62.2")),
+            (Decimal("161.81"), Decimal("39.7"), Decimal("66")),
+            (Decimal("183.88"), Decimal("42.1"), Decimal("69.9")),
+            (Decimal("205.94"), Decimal("47.6"), Decimal("76.6")),
+            (Decimal("228"), Decimal("53.8"), Decimal("83.8")),
+            (Decimal("250.07"), Decimal("60.8"), Decimal("91.8")),
+            (Decimal("272.13"), Decimal("69.3"), Decimal("100.5")),
+            (Decimal("294.2"), Decimal("79"), Decimal("110")),
+            (Decimal("316.26"), Decimal("90"), Decimal("120.5")),
+            (Decimal("338.33"), Decimal("102.7"), Decimal("132")),
+            (Decimal("367.75"), Decimal("117"), Decimal("144.5")),
+            (Decimal("999999"), Decimal("133.4"), Decimal("158.2")),
         ),
     ),
     (
         3000,
         (
-            (Decimal("999999"), PREFERENTIAL_SENTINEL, PREFERENTIAL_SENTINEL),
+            (Decimal("117.68"), PREFERENTIAL_SENTINEL, PREFERENTIAL_SENTINEL),
+            (Decimal("139.75"), Decimal("96.11"), Decimal("144")),
+            (Decimal("161.81"), Decimal("98.5"), Decimal("145.9")),
+            (Decimal("183.88"), Decimal("100.1"), Decimal("148")),
+            (Decimal("205.94"), Decimal("105"), Decimal("152.5")),
+            (Decimal("228"), Decimal("109.2"), Decimal("157.1")),
+            (Decimal("250.07"), Decimal("113.6"), Decimal("161.4")),
+            (Decimal("272.13"), Decimal("118.1"), Decimal("165.9")),
+            (Decimal("294.2"), Decimal("122.9"), Decimal("170.6")),
+            (Decimal("316.26"), Decimal("127.8"), Decimal("175.4")),
+            (Decimal("338.33"), Decimal("132.9"), Decimal("180.3")),
+            (Decimal("367.75"), Decimal("138.2"), Decimal("185.3")),
+            (Decimal("999999"), Decimal("143.7"), Decimal("190.5")),
         ),
     ),
     (
