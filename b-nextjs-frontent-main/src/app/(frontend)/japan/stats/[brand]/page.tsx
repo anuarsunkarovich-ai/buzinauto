@@ -113,8 +113,8 @@ export default async function JapanBrandStatsPage({
           fallback={
             <div className="flex animate-pulse flex-col gap-8">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-32 rounded-xl bg-card/40" />
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="h-32 rounded-xl bg-card/40" />
                 ))}
               </div>
               <div className="h-64 rounded-xl bg-card/40" />

@@ -95,9 +95,7 @@ export default async function JapanModelStatsPage({
             <Title as="h1" className="text-3xl font-black tracking-tight uppercase">
               Статистика <span className="text-primary">{toReadableSlug(brand)} {toReadableSlug(model)}</span>
             </Title>
-            <p className="mt-2 text-muted-foreground">
-              Анализ рынка с учетом выбранных фильтров.
-            </p>
+            <p className="mt-2 text-muted-foreground">Анализ рынка с учетом выбранных фильтров.</p>
           </div>
 
           <Href href={`/japan/cars/${brand}/${model}`}>
@@ -115,8 +113,8 @@ export default async function JapanModelStatsPage({
           fallback={
             <div className="flex animate-pulse flex-col gap-8">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-32 rounded-xl bg-card/40" />
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="h-32 rounded-xl bg-card/40" />
                 ))}
               </div>
               <div className="h-64 rounded-xl bg-card/40" />
