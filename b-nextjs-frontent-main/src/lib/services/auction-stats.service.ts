@@ -1,4 +1,4 @@
-import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
+import { fetchBackend } from '@/lib/api/backend-fetch'
 import { searchCars, type FastApiSearchCar } from '@/lib/services/auction.service'
 
 export type AuctionStatsResponse = {
@@ -189,6 +189,58 @@ export const buildAuctionStatsFallbackFromSearchResults = (
   }
 }
 
+export const getAuctionStats = async (
+  brand: string,
+  model?: string,
+  filters?: AuctionStatsFilters,
+): Promise<AuctionStatsResponse | null> => {
+  try {
+    const response = await fetchBackend('auction/stats', {
+      query: {
+        brand,
+        model,
+        min_mileage_km: typeof filters?.minMileageKm === 'number' ? filters.minMileageKm : undefined,
+        max_mileage_km: typeof filters?.maxMileageKm === 'number' ? filters.maxMileageKm : undefined,
+        min_year: typeof filters?.minYear === 'number' ? filters.minYear : undefined,
+        max_year: typeof filters?.maxYear === 'number' ? filters.maxYear : undefined,
+        min_grade: filters?.minGrade,
+        max_grade: filters?.maxGrade,
+        body: filters?.body,
+      },
+      next: { revalidate: 3600 },
+    })
+    if (response.ok) {
+      const stats = (await response.json()) as AuctionStatsResponse
+      if (stats.total_lots > 0) {
+        return stats
+      }
+    }
+
+    const searchResponse = await searchCars({
+      brand,
+      model,
+      body: filters?.body,
+      minGrade: filters?.minGrade,
+      maxGrade: filters?.maxGrade,
+      minYear: filters?.minYear,
+      maxYear: filters?.maxYear,
+      minMileageKm: filters?.minMileageKm,
+      maxMileageKm: filters?.maxMileageKm,
+      limit: 200,
+    })
+
+    return buildAuctionStatsFallbackFromSearchResults(
+      searchResponse.results,
+      brand,
+      model,
+      searchResponse.exchange_rate || 0,
+    )
+  } catch (error) {
+    console.error('getAuctionStats error:', error)
+    return null
+  }
+}
+
 export const buildAuctionStatsUrl = (
   baseUrl: string,
   brand: string,
@@ -224,51 +276,4 @@ export const buildAuctionStatsUrl = (
   }
 
   return url
-}
-
-export const getAuctionStats = async (
-  brand: string,
-  model?: string,
-  filters?: AuctionStatsFilters,
-): Promise<AuctionStatsResponse | null> => {
-  const baseUrl = getRuntimeBackendApiUrl()
-  if (!baseUrl) return null
-
-  try {
-    const response = await fetch(buildAuctionStatsUrl(baseUrl, brand, model, filters).toString(), {
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-      },
-      next: { revalidate: 3600 },
-    })
-    if (response.ok) {
-      const stats = (await response.json()) as AuctionStatsResponse
-      if (stats.total_lots > 0) {
-        return stats
-      }
-    }
-
-    const searchResponse = await searchCars({
-      brand,
-      model,
-      body: filters?.body,
-      minGrade: filters?.minGrade,
-      maxGrade: filters?.maxGrade,
-      minYear: filters?.minYear,
-      maxYear: filters?.maxYear,
-      minMileageKm: filters?.minMileageKm,
-      maxMileageKm: filters?.maxMileageKm,
-      limit: 200,
-    })
-
-    return buildAuctionStatsFallbackFromSearchResults(
-      searchResponse.results,
-      brand,
-      model,
-      searchResponse.exchange_rate || 0,
-    )
-  } catch (error) {
-    console.error('getAuctionStats error:', error)
-    return null
-  }
 }

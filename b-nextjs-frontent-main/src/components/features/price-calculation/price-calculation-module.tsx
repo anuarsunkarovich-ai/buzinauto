@@ -1,7 +1,6 @@
 'use client'
 
-import axios from 'axios'
-import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
+import { fetchBackendJson } from '@/lib/api/backend-fetch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -145,25 +144,22 @@ export const PriceCalculationModule: React.FC = () => {
   const horsepower = toSafeInt(hpStr) || 150
 
   const calculate = React.useCallback(async () => {
-    const baseUrl = getRuntimeBackendApiUrl()
-    if (!baseUrl) {
-      setError('Backend API URL не настроен')
-      return
-    }
-
     setLoading(true)
     setError(null)
 
     try {
-      const response = await axios.post<CalculationResponse>(`${baseUrl}/calculate`, {
-        price_jpy: Math.max(0, auctionPriceJpy),
-        engine_cc: Math.max(0, engineCc),
-        power_hp: Math.max(0, horsepower),
-        age_category: getAgeCategory(currentYear - year),
-        engine_type: fuelType,
-        usage_type: usageType,
+      const response = await fetchBackendJson<CalculationResponse>('calculate', {
+        method: 'POST',
+        json: {
+          price_jpy: Math.max(0, auctionPriceJpy),
+          engine_cc: Math.max(0, engineCc),
+          power_hp: Math.max(0, horsepower),
+          age_category: getAgeCategory(currentYear - year),
+          engine_type: fuelType,
+          usage_type: usageType,
+        },
       })
-      setResult(response.data)
+      setResult(response)
     } catch (requestError) {
       console.error('FastAPI calculator request failed:', requestError)
       setError('Не удалось получить расчет. Проверьте соединение.')

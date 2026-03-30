@@ -1,6 +1,5 @@
-import axios from 'axios'
 import * as React from 'react'
-import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
+import { fetchBackendJson } from '@/lib/api/backend-fetch'
 
 import { DetailChinaCarPrice, DetailJapanCarPrice } from '@/constants/detail-car-price'
 import { EngineType } from '@/lib/calculator/car-fee-import-calc.type'
@@ -99,10 +98,9 @@ const requestCalculation = async ({
     return inFlightRequest
   }
 
-  const request = axios
-    .post<FastApiCalculationResponse>(
-      `${getRuntimeBackendApiUrl()}/calculate`,
-      {
+  const request = fetchBackendJson<FastApiCalculationResponse>('calculate', {
+      method: 'POST',
+      json: {
         price_jpy: Math.max(0, Math.round(Number(price))),
         engine_cc: Math.max(0, Math.round(Number(enginePower))),
         power_hp: Math.max(0, Math.round(Number(horsepower || 150))),
@@ -110,16 +108,11 @@ const requestCalculation = async ({
         engine_type: engineType,
         usage_type: usageType,
       },
-      {
-        headers: {
-          'ngrok-skip-browser-warning': 'true',
-        },
-      },
-    )
+    })
     .then((response) => {
-      calculationResponseCache.set(cacheKey, response.data)
+      calculationResponseCache.set(cacheKey, response)
       calculationRequestCache.delete(cacheKey)
-      return response.data
+      return response
     })
     .catch((error) => {
       calculationRequestCache.delete(cacheKey)

@@ -1,4 +1,4 @@
-import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
+import { fetchBackendJson } from '@/lib/api/backend-fetch'
 
 export type SearchCarsParams = {
   brand: string
@@ -166,90 +166,6 @@ const matchesModelQuery = (car: FastApiSearchCar, modelQuery: string) => {
   })
 }
 
-const buildSearchUrl = (
-  baseUrl: string,
-  {
-    brand,
-    model,
-    lot,
-    includeCompleted,
-    enrichDetails,
-    body,
-    auctionDate,
-    minGrade,
-    maxGrade,
-    rating,
-    minYear,
-    maxYear,
-    minMileageKm,
-    maxMileageKm,
-    minEnginePower,
-    maxEnginePower,
-    minPrice,
-    maxPrice,
-    limit,
-  }: SearchCarsParams,
-) => {
-  const url = new URL(`${baseUrl.replace(/\/$/, '')}/search`)
-  url.searchParams.set('brand', brand)
-  if (model) {
-    url.searchParams.set('model', model)
-  }
-  if (lot) {
-    url.searchParams.set('lot', lot)
-  }
-  if (includeCompleted) {
-    url.searchParams.set('include_completed', '1')
-  }
-  if (enrichDetails) {
-    url.searchParams.set('enrich_details', '1')
-  }
-  if (body) {
-    url.searchParams.set('body', body)
-  }
-  if (limit) {
-    url.searchParams.set('limit', String(limit))
-  }
-  if (auctionDate) {
-    url.searchParams.set('auction_date', auctionDate)
-  }
-  if (minGrade) {
-    url.searchParams.set('min_grade', minGrade)
-  }
-  if (maxGrade) {
-    url.searchParams.set('max_grade', maxGrade)
-  }
-  if (rating) {
-    url.searchParams.set('rating', rating)
-  }
-  if (typeof minYear === 'number') {
-    url.searchParams.set('min_year', String(minYear))
-  }
-  if (typeof maxYear === 'number') {
-    url.searchParams.set('max_year', String(maxYear))
-  }
-  if (typeof minMileageKm === 'number') {
-    url.searchParams.set('min_mileage_km', String(minMileageKm))
-  }
-  if (typeof maxMileageKm === 'number') {
-    url.searchParams.set('max_mileage_km', String(maxMileageKm))
-  }
-  if (typeof minEnginePower === 'number') {
-    url.searchParams.set('min_engine_volume_l', String(minEnginePower))
-  }
-  if (typeof maxEnginePower === 'number') {
-    url.searchParams.set('max_engine_volume_l', String(maxEnginePower))
-  }
-  if (typeof minPrice === 'number') {
-    url.searchParams.set('min_price_rub', String(minPrice))
-  }
-  if (typeof maxPrice === 'number') {
-    url.searchParams.set('max_price_rub', String(maxPrice))
-  }
-
-  return url
-}
-
 export const searchCars = async ({
   brand,
   model,
@@ -271,47 +187,30 @@ export const searchCars = async ({
   maxPrice,
   limit,
 }: SearchCarsParams): Promise<SearchCarsResponse> => {
-  const baseUrl = getRuntimeBackendApiUrl()
-
-  if (!baseUrl) {
-    throw new Error('Backend API URL is not configured')
-  }
-
-  const response = await fetch(
-    buildSearchUrl(baseUrl, {
+  const payload = await fetchBackendJson<FastApiSearchPayload>('search', {
+    query: {
       brand,
       model,
       lot,
-      includeCompleted,
-      enrichDetails,
+      include_completed: includeCompleted ? '1' : undefined,
+      enrich_details: enrichDetails ? '1' : undefined,
       body,
-      auctionDate,
-      minGrade,
-      maxGrade,
+      auction_date: auctionDate,
+      min_grade: minGrade,
+      max_grade: maxGrade,
       rating,
-      minYear,
-      maxYear,
-      minMileageKm,
-      maxMileageKm,
-      minEnginePower,
-      maxEnginePower,
-      minPrice,
-      maxPrice,
+      min_year: typeof minYear === 'number' ? minYear : undefined,
+      max_year: typeof maxYear === 'number' ? maxYear : undefined,
+      min_mileage_km: typeof minMileageKm === 'number' ? minMileageKm : undefined,
+      max_mileage_km: typeof maxMileageKm === 'number' ? maxMileageKm : undefined,
+      min_engine_volume_l: typeof minEnginePower === 'number' ? minEnginePower : undefined,
+      max_engine_volume_l: typeof maxEnginePower === 'number' ? maxEnginePower : undefined,
+      min_price_rub: typeof minPrice === 'number' ? minPrice : undefined,
+      max_price_rub: typeof maxPrice === 'number' ? maxPrice : undefined,
       limit,
-    }).toString(),
-    {
-      cache: 'no-store',
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-      },
     },
-  )
-
-  if (!response.ok) {
-    throw new Error(`FastAPI search failed with status ${response.status}`)
-  }
-
-  const payload = (await response.json()) as FastApiSearchPayload
+    cache: 'no-store',
+  })
   const responseMeta = Array.isArray(payload) ? undefined : payload
   const rawResults = Array.isArray(payload)
     ? payload

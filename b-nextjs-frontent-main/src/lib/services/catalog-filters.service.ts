@@ -1,5 +1,5 @@
 import { Country } from '@/constants/country'
-import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
+import { fetchBackendJson } from '@/lib/api/backend-fetch'
 import { toUrlSlug } from '@/lib/transform'
 
 export type CatalogBrandOption = {
@@ -275,17 +275,14 @@ export const normalizeBodyResponse = (payload: unknown): CatalogBodyOption[] => 
 }
 
 export const fetchCatalogBrands = async (country?: string) => {
-  const baseUrl = getRuntimeBackendApiUrl()
-  if (baseUrl) {
-    try {
-      const payload = await fetchJson(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
-      const brands = normalizeBrandResponse(payload)
-      if (brands.length > 0) {
-        return brands
-      }
-    } catch (error) {
-      console.error('fetchCatalogBrands backend error:', error)
+  try {
+    const payload = await fetchBackendJson<UnknownRecord>('auction/filters')
+    const brands = normalizeBrandResponse(payload)
+    if (brands.length > 0) {
+      return brands
     }
+  } catch (error) {
+    console.error('fetchCatalogBrands backend error:', error)
   }
 
   const searchParams = new URLSearchParams({
@@ -307,9 +304,6 @@ export const fetchCatalogBrands = async (country?: string) => {
     console.error('fetchCatalogBrands local fallback error:', error)
   }
 
-  if (!baseUrl) {
-    return []
-  }
   return []
 }
 
@@ -318,19 +312,18 @@ export const fetchCatalogModels = async (brand: string, country?: string) => {
     return []
   }
 
-  const baseUrl = getRuntimeBackendApiUrl()
-  if (baseUrl) {
-    try {
-      const url = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
-      url.searchParams.set('brand_id', brand)
-      const payload = await fetchJson(url.toString())
-      const models = normalizeModelResponse(payload, brand)
-      if (models.length > 0) {
-        return models
-      }
-    } catch (error) {
-      console.error('fetchCatalogModels backend error:', error)
+  try {
+    const payload = await fetchBackendJson<UnknownRecord>('auction/filters', {
+      query: {
+        brand_id: brand,
+      },
+    })
+    const models = normalizeModelResponse(payload, brand)
+    if (models.length > 0) {
+      return models
     }
+  } catch (error) {
+    console.error('fetchCatalogModels backend error:', error)
   }
 
   const searchParams = new URLSearchParams({
@@ -354,9 +347,6 @@ export const fetchCatalogModels = async (brand: string, country?: string) => {
     console.error('fetchCatalogModels local fallback error:', error)
   }
 
-  if (!baseUrl) {
-    return []
-  }
   return []
 }
 
@@ -369,35 +359,36 @@ export const fetchCatalogBodies = async (
     return []
   }
 
-  const baseUrl = getRuntimeBackendApiUrl()
-  if (baseUrl) {
-    try {
-      const filtersUrl = new URL(`${baseUrl.replace(/\/$/, '')}/auction/filters`)
-      filtersUrl.searchParams.set('brand_id', brand)
-      filtersUrl.searchParams.set('model_id', model)
-      const filtersPayload = await fetchJson(filtersUrl.toString())
-      const directBodies = normalizeBodyResponse(filtersPayload)
-      if (directBodies.length > 0) {
-        return directBodies
-      }
-    } catch (error) {
-      console.error('fetchCatalogBodies backend filters error:', error)
+  try {
+    const filtersPayload = await fetchBackendJson<UnknownRecord>('auction/filters', {
+      query: {
+        brand_id: brand,
+        model_id: model,
+      },
+    })
+    const directBodies = normalizeBodyResponse(filtersPayload)
+    if (directBodies.length > 0) {
+      return directBodies
     }
+  } catch (error) {
+    console.error('fetchCatalogBodies backend filters error:', error)
+  }
 
-    try {
-      const searchUrl = new URL(`${baseUrl.replace(/\/$/, '')}/search`)
-      searchUrl.searchParams.set('brand', brand)
-      searchUrl.searchParams.set('model', model)
-      searchUrl.searchParams.set('limit', '200')
-
-      const payload = await fetchJson(searchUrl.toString())
-      const bodies = buildSearchFallbackBodies(payload)
-      if (bodies.length > 0) {
-        return bodies
-      }
-    } catch (error) {
-      console.error('fetchCatalogBodies backend search error:', error)
+  try {
+    const payload = await fetchBackendJson<UnknownRecord>('search', {
+      query: {
+        brand,
+        model,
+        limit: 200,
+      },
+      cache: 'no-store',
+    })
+    const bodies = buildSearchFallbackBodies(payload)
+    if (bodies.length > 0) {
+      return bodies
     }
+  } catch (error) {
+    console.error('fetchCatalogBodies backend search error:', error)
   }
 
   const searchParams = new URLSearchParams()
@@ -421,8 +412,5 @@ export const fetchCatalogBodies = async (
     console.error('fetchCatalogBodies local fallback error:', error)
   }
 
-  if (!baseUrl) {
-    return []
-  }
   return []
 }

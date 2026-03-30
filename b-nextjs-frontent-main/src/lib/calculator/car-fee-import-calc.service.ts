@@ -1,5 +1,4 @@
-import axios from 'axios'
-import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
+import { fetchBackendJson } from '@/lib/api/backend-fetch'
 import {
   CarFeeImportConfig,
   DutyEngineRate,
@@ -25,17 +24,15 @@ export class CarFeeImportCalcService {
     carAge: number
   }): Promise<CarFeeCalculationResponse> {
     const { price, engineCapacity, carAge } = params
-    const response = await axios.post<CarFeeCalculationResponse>(
-      `${getRuntimeBackendApiUrl()}/calculate`,
-      {
+    return fetchBackendJson<CarFeeCalculationResponse>('calculate', {
+      method: 'POST',
+      json: {
         price_jpy: price,
         engine_cc: engineCapacity,
         power_hp: 150,
         age_category: this._getAgeCategory(carAge),
       },
-    )
-
-    return response.data
+    })
   }
 
   public deliveryAmount(carPriceJPY: number) {
