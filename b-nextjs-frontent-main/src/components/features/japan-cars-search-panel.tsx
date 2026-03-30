@@ -73,6 +73,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
   const [cars, setCars] = React.useState<CarVisibleCardPropsTypes[]>(initialItems)
   const [loading, setLoading] = React.useState(false)
   const [hasSubmittedSearch, setHasSubmittedSearch] = React.useState(false)
+  const [searchError, setSearchError] = React.useState<string | null>(null)
   const [exchangeRate, setExchangeRate] = React.useState<{
     rate: number
     source: string
@@ -84,6 +85,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
     setCars(initialItems)
     setHasSubmittedSearch(false)
     setExchangeRate(null)
+    setSearchError(null)
   }, [initialItems])
 
   const handleSearch = React.useCallback(
@@ -91,6 +93,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
       setHasSubmittedSearch(true)
       setLoading(true)
       setExchangeRate(null)
+      setSearchError(null)
 
       try {
         const response = await searchCars({
@@ -123,6 +126,10 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
             date: response.rate_date,
           })
         }
+      } catch (error) {
+        console.error('Japan catalog search failed:', error)
+        setCars([])
+        setSearchError('Не удалось загрузить лоты. Попробуйте обновить страницу или повторить поиск.')
       } finally {
         setLoading(false)
       }
@@ -171,6 +178,12 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
           </Text>
         )}
       </div>
+
+      {searchError && (
+        <Text as="small" className="text-destructive">
+          {searchError}
+        </Text>
+      )}
 
       {!loading && hasSubmittedSearch && cars.length === 0 && (
         <Text as="small" className="text-muted-foreground">
