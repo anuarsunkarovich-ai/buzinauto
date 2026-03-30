@@ -42,6 +42,7 @@ export type FastApiSearchCar = {
     lot_price_jpy?: number
     average_price_jpy?: number
     buy_and_delivery_rub?: number
+    buy_and_delivery_jpy?: number
     customs_broker_rub?: number
     customs_duty_rub?: number
     customs_processing_fee_rub?: number
@@ -55,6 +56,7 @@ export type FastApiSearchCar = {
     bank_sell_rate?: number
     duty_exchange_rate?: number
     duty_rate_source?: string
+    rate_date?: string
     usage_type?: string
     user_type?: string
     forced_commercial?: boolean
@@ -241,6 +243,7 @@ const buildSearchUrl = (
 export const searchCars = async ({
   brand,
   model,
+  includeCompleted,
   body,
   auctionDate,
   minGrade,
@@ -266,6 +269,7 @@ export const searchCars = async ({
     buildSearchUrl(baseUrl, {
       brand,
       model,
+      includeCompleted,
       body,
       auctionDate,
       minGrade,

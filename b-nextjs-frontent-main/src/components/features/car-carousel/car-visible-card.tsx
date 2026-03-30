@@ -5,6 +5,7 @@ import { Money } from '@/components/ui/money'
 import { Text } from '@/components/ui/text'
 import { Title } from '@/components/ui/title'
 import { useCarFeeFuncEnum } from '@/hooks/use-car-fee-calc'
+import type { PrefetchedCalculation } from '@/lib/calculator/prefetched-calculation'
 import { EngineType } from '@/lib/calculator/car-fee-import-calc.type'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
@@ -33,6 +34,7 @@ export type CarVisibleCardPropsTypes = {
   isDetailed?: boolean
   initialTotalRub?: number
   initialCommercialTotalRub?: number
+  prefetchedCalculation?: PrefetchedCalculation
 } & CarCarouselOnHoverCardPropsTypes
 
 export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
@@ -56,6 +58,7 @@ export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
   isDetailed = true,
   initialTotalRub,
   initialCommercialTotalRub,
+  prefetchedCalculation,
 }) => {
   const router = useRouter()
   const carAge = new Date().getFullYear() - year
@@ -204,6 +207,7 @@ export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
               engineType="gasoline"
               horsepower={horsepower}
               enginePower={enginePower}
+              prefetchedCalculation={prefetchedCalculation}
             />
           )}
           <Text

@@ -113,6 +113,28 @@ def _build_lot_identity(car: dict) -> str:
     return "::".join(part for part in [lot, auction_date, detail_link] if part)
 
 
+def _parse_auction_datetime(value: object) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+
+    return None
+
+
+def _sort_catalog_cars(cars: list[dict]) -> list[dict]:
+    def _sort_key(car: dict) -> tuple[datetime, str]:
+        parsed_date = _parse_auction_datetime(car.get("auction_date")) or datetime.min
+        return parsed_date, str(car.get("lot") or "")
+
+    return sorted(cars, key=_sort_key, reverse=True)
+
+
 def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
     # Sanitize input immediately - remove any quotes, backslashes, or whitespace
     def clean_id(s: str) -> str:
@@ -345,7 +367,7 @@ def _is_catalog_active_lot(car: dict) -> bool:
 @app.get("/api/v1/search")
 async def search_and_calculate(
     brand: str = "9",
-    model: str = "718",
+    model: str = "",
     auction_date: str | None = None,
     body: str | None = None,
     min_grade: str | None = None,
@@ -389,6 +411,7 @@ async def search_and_calculate(
             search_type="max",
             body=str(body or ""),
         )
+        cars = _sort_catalog_cars(cars)
 
     # ── Apply Filters ────────────────────────────────────────────────────────
     if not include_completed:
@@ -448,6 +471,8 @@ async def search_and_calculate(
         cars = [
             car for car in cars if _safe_number(car.get("engine_cc")) <= max_engine_cc
         ]
+
+    cars = _sort_catalog_cars(cars)
 
     # Limit the number of cars BEFORE enrichment to avoid excessive network calls
     if limit and limit > 0:

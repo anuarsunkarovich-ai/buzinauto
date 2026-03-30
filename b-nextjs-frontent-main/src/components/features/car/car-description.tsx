@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { Text } from '@/components/ui/text'
 import { Title } from '@/components/ui/title'
 import { useCarFeeFuncEnum } from '@/hooks/use-car-fee-calc'
+import type { PrefetchedCalculation } from '@/lib/calculator/prefetched-calculation'
 import { EngineType } from '@/lib/calculator/car-fee-import-calc.type'
 import { cn } from '@/lib/utils'
 import * as React from 'react'
@@ -29,6 +30,7 @@ export type CarDescriptionPropsTypes = {
   wheelPosition?: string
   engineType?: EngineType
   className?: string
+  prefetchedCalculation?: PrefetchedCalculation
 }
 
 export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
@@ -48,6 +50,7 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
   engineType,
   wheelPosition,
   className,
+  prefetchedCalculation,
 }) => {
   const { dutyPrice, auctionPrice, deliveryPrice, totalRubAmount } = useCarFeeFuncEnum(
     price,
@@ -57,6 +60,32 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
     horsepower,
     new Date().getFullYear() - year,
   )
+
+  const prefetchedAuctionRub = React.useMemo(() => {
+    if (!prefetchedCalculation) {
+      return undefined
+    }
+
+    return Math.max(
+      0,
+      Math.round(
+        (prefetchedCalculation.totalRub || 0) -
+          (prefetchedCalculation.breakdown?.buyAndDeliveryRub || 0) -
+          (prefetchedCalculation.breakdown?.customsBrokerRub || 0) -
+          (prefetchedCalculation.breakdown?.customsDutyRub || 0) -
+          (prefetchedCalculation.breakdown?.utilFeeRub || 0) -
+          (prefetchedCalculation.breakdown?.companyCommission || 0),
+      ),
+    )
+  }, [prefetchedCalculation])
+
+  const effectiveAuctionRub = prefetchedAuctionRub ?? auctionPrice()
+  const effectiveDutyRub =
+    Math.round(prefetchedCalculation?.breakdown?.customsDutyRub || 0) || dutyPrice()
+  const effectiveDeliveryRub =
+    Math.round(prefetchedCalculation?.breakdown?.buyAndDeliveryRub || 0) || deliveryPrice()
+  const effectiveTotalRub =
+    Math.round(prefetchedCalculation?.totalRub || 0) || totalRubAmount()
 
   const formattedAuctionDate = React.useMemo(() => {
     if (!auctionDate) {
@@ -84,9 +113,9 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
   ]
 
   const carPriceDetails = [
-    { label: 'Аукционная стоимость', value: auctionPrice() },
-    { label: 'Пошлина', value: dutyPrice() },
-    { label: 'Доставка до города клиента', value: deliveryPrice() },
+    { label: 'Аукционная стоимость', value: effectiveAuctionRub },
+    { label: 'Пошлина', value: effectiveDutyRub },
+    { label: 'Доставка до города клиента', value: effectiveDeliveryRub },
   ]
 
   const renderTriggerPrice = React.useCallback((): React.ReactNode => {
@@ -107,9 +136,9 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
       <div className="flex items-center space-x-4">
         <meta itemProp="availability" content="https://schema.org/PreOrder" />
         <meta itemProp="priceCurrency" content="RUB" />
-        <meta itemProp="price" content={`${totalRubAmount()}`} />
+        <meta itemProp="price" content={`${effectiveTotalRub}`} />
         <Title className="block border-0 p-0" as="span" usingStyleFrom="h2">
-          От <Money amount={totalRubAmount()} />
+          От <Money amount={effectiveTotalRub} />
         </Title>
         <Text as="span" className="inline-block h-6 rounded bg-primary px-2 py-1 text-xs font-bold">
           Под заказ
@@ -171,6 +200,7 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
           enginePower={enginePower}
           horsepower={horsepower}
           renderTrigger={renderTriggerPrice}
+          prefetchedCalculation={prefetchedCalculation}
         />
         {auctionSheetUrl && (
           <Button asChild variant="secondary" className="w-full max-w-full cursor-pointer">

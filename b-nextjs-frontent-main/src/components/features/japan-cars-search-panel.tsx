@@ -4,9 +4,9 @@ import { CarCarouselOnHover } from '@/components/features/car-carousel/car-carou
 import type { CarVisibleCardPropsTypes } from '@/components/features/car-carousel/car-visible-card'
 import { FilterAuto, type FilterAutoPropsTypes } from '@/components/forms/filter-auto/filter-auto'
 import { filterAutoSchema } from '@/components/forms/filter-auto/filter-auto-schema'
-import { Text } from '@/components/ui/text'
+import { mapFastApiCarToVisibleCard } from '@/lib/mappers/fastapi-car.mapper'
 import { searchCars } from '@/lib/services/auction.service'
-import { toModelDisplay, toUrlSlug } from '@/lib/transform'
+import { Text } from '@/components/ui/text'
 import * as React from 'react'
 import { z } from 'zod'
 
@@ -15,7 +15,6 @@ type JapanCarsSearchPanelProps = {
   defaultValues?: FilterAutoPropsTypes['defaultValues']
 }
 
-type FastApiSearchCar = Awaited<ReturnType<typeof searchCars>>['results'][number]
 type SearchValues = z.infer<typeof filterAutoSchema>
 
 const hasDefaultSearchValues = (defaultValues?: FilterAutoPropsTypes['defaultValues']) =>
@@ -66,106 +65,6 @@ const defaultValuesToSearchValues = (
   maxPrice: toNumber(defaultValues?.maxPrice),
   saleCountry: defaultValues?.saleCountry,
 })
-
-const pickImage = (car: FastApiSearchCar) => {
-  return car.image_url || car.image_urls?.[0] || '/static/img/loading72.gif'
-}
-
-const buildImages = (car: FastApiSearchCar, fallbackAlt: string) => {
-  const sources = car.image_urls?.length ? car.image_urls : [pickImage(car)]
-
-  return sources
-    .filter(Boolean)
-    .map((src, index) => ({
-      src,
-      alt: index === 0 ? fallbackAlt : `${fallbackAlt} ${index + 1}`,
-    }))
-}
-
-const normalizeCarText = (value: string | number | undefined | null) =>
-  String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9а-яё]+/gi, '')
-
-const buildUniqueCarTextParts = (parts: Array<string | number | undefined | null>) => {
-  return parts.reduce<string[]>((acc, part) => {
-    const rawPart = String(part || '').trim()
-    if (!rawPart) {
-      return acc
-    }
-
-    const normalizedPart = normalizeCarText(rawPart)
-    if (!normalizedPart) {
-      return acc
-    }
-
-    const isDuplicate = acc.some((existingPart) => {
-      const normalizedExisting = normalizeCarText(existingPart)
-      return (
-        normalizedExisting === normalizedPart ||
-        normalizedExisting.includes(normalizedPart) ||
-        normalizedPart.includes(normalizedExisting)
-      )
-    })
-
-    if (!isDuplicate) {
-      acc.push(rawPart)
-    }
-
-    return acc
-  }, [])
-}
-
-const mapFastApiCarToVisibleCard = (
-  car: FastApiSearchCar,
-  index: number,
-): CarVisibleCardPropsTypes => {
-  const brand = car.brand || 'Japan'
-  const model = car.modelDisplay || car.model || car.model_code || 'Model'
-  const year = Number(car.year || new Date().getFullYear())
-  const priceJpy = Number(
-    car.calculation_price_jpy || car.average_price_jpy || car.price_jpy || 0,
-  )
-  const enginePower = Number(car.engine_cc || 0)
-  const mileageKm = Number(String(car.mileage ?? 0).replace(/[^\d]/g, '')) || 0
-  const initialTotalRub = Number(car.total_rub || 0)
-  const titleParts = buildUniqueCarTextParts([model, car.modification, String(year)])
-  const imageAlt = [toModelDisplay(brand), model, String(year)].filter(Boolean).join(' ')
-  const descriptionParts = buildUniqueCarTextParts([
-    car.body,
-    car.modification,
-    mileageKm ? `${mileageKm} км.` : undefined,
-  ])
-
-  return {
-    title: titleParts.join(' '),
-    lot: car.lot,
-    modelSlug: toUrlSlug(car.modelSlug || model),
-    id: car.lot || `${index}`,
-    brandSlug: toUrlSlug(brand),
-    countryPath: '/japan',
-    description: descriptionParts.join(', '),
-    tags: [
-      car.model_code,
-      car.color,
-      car.transmission,
-      car.grade,
-      enginePower ? `${enginePower} cc` : undefined,
-    ].filter(Boolean) as string[],
-    price: priceJpy,
-    currency: 'JPY',
-    year,
-    horsepower: Number(car.horsepower || 0),
-    enginePower,
-    engineType: 'gasoline',
-    location: [car.auction_name, car.auction].filter(Boolean).join(' ') || 'Japan',
-    auctionDate: car.auction_date,
-    rating: car.rating || undefined,
-    initialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
-    initialCommercialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
-    images: buildImages(car, imageAlt),
-  }
-}
 
 export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
   initialItems,
@@ -253,11 +152,11 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
             as="small"
             className="rounded-lg border border-border/50 bg-secondary/10 px-3 py-1.5 text-muted-foreground"
           >
-            Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> (
+            ÐšÑƒÑ€Ñ: <span className="font-bold text-foreground">{exchangeRate.rate} â‚½/Â¥</span> (
             {exchangeRate.source})
             {exchangeRate.date && (
               <span className="ml-2">
-                Актуальный курс иены банка АТБ на {exchangeRate.date}: {exchangeRate.rate}
+                ÐÐºÑ‚ÑƒÐ°Ð»ÑŒÐ½Ñ‹Ð¹ ÐºÑƒÑ€Ñ Ð¸ÐµÐ½Ñ‹ Ð±Ð°Ð½ÐºÐ° ÐÐ¢Ð‘ Ð½Ð° {exchangeRate.date}: {exchangeRate.rate}
               </span>
             )}
           </Text>
@@ -265,14 +164,14 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
 
         {loading && (
           <Text as="small" className="animate-pulse text-muted-foreground">
-            Загрузка свежих лотов...
+            Ð—Ð°Ð³Ñ€ÑƒÐ·ÐºÐ° ÑÐ²ÐµÐ¶Ð¸Ñ… Ð»Ð¾Ñ‚Ð¾Ð²...
           </Text>
         )}
       </div>
 
       {!loading && hasSubmittedSearch && cars.length === 0 && (
         <Text as="small" className="text-muted-foreground">
-          No live lots match the current filters. Try broadening the filters or choosing another model.
+          No lots match the current filters. Try broadening the filters or choosing another model.
         </Text>
       )}
       <CarCarouselOnHover items={cars} />

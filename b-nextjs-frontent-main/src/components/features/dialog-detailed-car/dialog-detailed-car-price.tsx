@@ -1,6 +1,7 @@
 import { CITY_ALL } from '@/constants/city'
 import { useCarFeeFuncEnum } from '@/hooks/use-car-fee-calc'
 import { useCity } from '@/hooks/use-city'
+import type { PrefetchedCalculation } from '@/lib/calculator/prefetched-calculation'
 import { EngineType } from '@/lib/calculator/car-fee-import-calc.type'
 import * as React from 'react'
 import { Button } from '../../ui/button'
@@ -31,6 +32,7 @@ export type DialogDetailedCarPricePropsTypes = {
   carAge: number
   deliveryCity?: string
   renderTrigger?: () => React.ReactNode
+  prefetchedCalculation?: PrefetchedCalculation
 } & Partial<React.ReactPortal>
 
 export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> = ({
@@ -42,6 +44,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
   renderTrigger,
   horsepower,
   deliveryCity: defaultDeliveryCity,
+  prefetchedCalculation,
 }) => {
   const [open, setOpen] = React.useState(false)
   const { currentCity } = useCity()
@@ -59,6 +62,69 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
   } = useCarFeeFuncEnum(carPrice, currency, engineType, enginePower, horsepower, carAge, 'private')
 
   const { setCurrentCity, currentCity: userCity } = useCity()
+
+  const prefetchedAuctionRub = React.useMemo(() => {
+    if (!prefetchedCalculation) {
+      return 0
+    }
+
+    return Math.max(
+      0,
+      Math.round(
+        (prefetchedCalculation.totalRub || 0) -
+          (prefetchedCalculation.breakdown?.buyAndDeliveryRub || 0) -
+          (prefetchedCalculation.breakdown?.customsBrokerRub || 0) -
+          (prefetchedCalculation.breakdown?.customsDutyRub || 0) -
+          (prefetchedCalculation.breakdown?.utilFeeRub || 0) -
+          (prefetchedCalculation.breakdown?.companyCommission || 0),
+      ),
+    )
+  }, [prefetchedCalculation])
+
+  const prefetchedCalculator = React.useCallback(
+    (callToMoney?: string) => {
+      if (!prefetchedCalculation || !callToMoney) {
+        return 0
+      }
+
+      switch (callToMoney) {
+        case 'AUCTION_PRICE':
+          return prefetchedAuctionRub
+        case 'AUCTION_DELIVERY':
+          return Math.round(prefetchedCalculation.breakdown?.buyAndDeliveryRub || 0)
+        case 'CLEARANCE_FEE':
+          return Math.round(prefetchedCalculation.breakdown?.customsBrokerRub || 0)
+        case 'CUSTOMS_DUTY':
+          return Math.round(prefetchedCalculation.breakdown?.customsDutyRub || 0)
+        case 'RECYCLING_FEE':
+          return Math.round(prefetchedCalculation.breakdown?.utilFeeRub || 0)
+        case 'COMMISSION':
+        case 'COMMISSION_CNY':
+          return Math.round(prefetchedCalculation.breakdown?.companyCommission || 0)
+        default:
+          return 0
+      }
+    },
+    [prefetchedAuctionRub, prefetchedCalculation],
+  )
+
+  const effectiveTotalRubAmount = React.useCallback(() => {
+    if ((prefetchedCalculation?.totalRub || 0) > 0) {
+      return Math.round(prefetchedCalculation?.totalRub || 0)
+    }
+
+    return totalRubAmount()
+  }, [prefetchedCalculation, totalRubAmount])
+
+  const effectiveCommercialRate =
+    prefetchedCalculation?.commercialRate ||
+    prefetchedCalculation?.bankSellRate ||
+    prefetchedCalculation?.bankBuyRate ||
+    commercialRate
+
+  const effectiveBuyAndDeliveryJpy =
+    prefetchedCalculation?.breakdown?.buyAndDeliveryJpy ?? buyAndDeliveryJpy
+  const effectiveRateDate = prefetchedCalculation?.rateDate || rateDate
 
   const selectCity = React.useMemo(() => {
     return userCity?.id || deliveryCity
@@ -106,7 +172,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
                 Итого
               </Text>
               <Text as="span" className="mt-1 block text-lg font-semibold">
-                <Money amount={totalRubAmount()} />
+                <Money amount={effectiveTotalRubAmount()} />
               </Text>
             </div>
             <div className="flex items-center space-x-3">
@@ -161,7 +227,10 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
           </TableHeader>
           <TableBody>
             {currencyPriceList.map((row, i) => {
-              const moneyRub = calculator(row)
+              const moneyRub =
+                prefetchedCalculation && (prefetchedCalculation.totalRub || prefetchedCalculation.breakdown)
+                  ? prefetchedCalculator(row.callToMoney)
+                  : calculator(row)
               if (!moneyRub) return
               const isAuctionPriceRow = row.callToMoney === 'AUCTION_PRICE'
               const isJapanExpensesRow = row.callToMoney === 'AUCTION_DELIVERY'
@@ -189,17 +258,17 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
                           <Text as="small" className="text-muted-foreground">
                             {carPrice.toLocaleString('ru-RU')} ¥
                           </Text>
-                          {commercialRate && (
+                          {effectiveCommercialRate && (
                             <Text as="small" className="text-center text-muted-foreground">
                               Актуальный коммерческий курс йены банка АТБ
-                              {rateDate ? ` на ${rateDate}` : ''} составляет: {commercialRate}
+                              {effectiveRateDate ? ` на ${effectiveRateDate}` : ''} составляет: {effectiveCommercialRate}
                             </Text>
                           )}
                         </>
                       )}
-                      {isJapanExpensesRow && (buyAndDeliveryJpy || 0) > 0 && (
+                      {isJapanExpensesRow && (effectiveBuyAndDeliveryJpy || 0) > 0 && (
                         <Text as="small" className="text-muted-foreground">
-                          {Number(buyAndDeliveryJpy).toLocaleString('ru-RU')} Â¥
+                          {Number(effectiveBuyAndDeliveryJpy).toLocaleString('ru-RU')} Â¥
                         </Text>
                       )}
                     </div>
@@ -215,7 +284,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
             <TableRow>
               <TableCell>Итого</TableCell>
               <TableCell colSpan={2} className="text-right">
-                <Money amount={totalRubAmount()} />
+                <Money amount={effectiveTotalRubAmount()} />
               </TableCell>
             </TableRow>
           </TableFooter>

@@ -1,6 +1,7 @@
 import type { CarCarouselOnHoverCardImagePropsTypes } from '@/components/features/car-carousel/car-carousel-on-hover-card'
 import type { CarVisibleCardPropsTypes } from '@/components/features/car-carousel/car-visible-card'
 import type { CarDescriptionPropsTypes } from '@/components/features/car/car-description'
+import type { PrefetchedCalculation } from '@/lib/calculator/prefetched-calculation'
 import type { ImageGalleryViewerItems } from '@/components/ui/image/image-gallery-viewer'
 import type { FastApiSearchCar } from '@/lib/services/auction.service'
 import { toModelDisplay, toUrlSlug } from '@/lib/transform'
@@ -64,6 +65,33 @@ export const buildFastApiCarImages = (
   }))
 }
 
+const buildPrefetchedCalculation = (
+  car: FastApiSearchCar,
+  initialTotalRub: number,
+): PrefetchedCalculation | undefined =>
+  car.price_details || initialTotalRub > 0
+    ? {
+        totalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
+        commercialRate:
+          car.price_details?.bank_sell_rate ??
+          car.price_details?.exchange_rate ??
+          car.price_details?.bank_buy_rate,
+        bankBuyRate: car.price_details?.bank_buy_rate,
+        bankSellRate: car.price_details?.bank_sell_rate,
+        rateDate: car.price_details?.rate_date,
+        breakdown: car.price_details
+          ? {
+              buyAndDeliveryRub: car.price_details.buy_and_delivery_rub,
+              buyAndDeliveryJpy: car.price_details.buy_and_delivery_jpy,
+              customsBrokerRub: car.price_details.customs_broker_rub,
+              customsDutyRub: car.price_details.customs_duty_rub,
+              utilFeeRub: car.price_details.util_fee_rub,
+              companyCommission: car.price_details.company_commission,
+            }
+          : undefined,
+      }
+    : undefined
+
 export const mapFastApiCarToVisibleCard = (
   car: FastApiSearchCar,
   index: number,
@@ -75,6 +103,7 @@ export const mapFastApiCarToVisibleCard = (
   const enginePower = Number(car.engine_cc || 0)
   const mileageKm = normalizeMileage(car.mileage)
   const initialTotalRub = Number(car.total_rub || car.price_details?.total_rub || 0)
+  const prefetchedCalculation = buildPrefetchedCalculation(car, initialTotalRub)
   const titleParts = buildUniqueCarTextParts([model, car.modification, String(year)])
   const imageAlt = [toModelDisplay(brand), model, String(year)].filter(Boolean).join(' ')
   const descriptionParts = buildUniqueCarTextParts([
@@ -109,6 +138,7 @@ export const mapFastApiCarToVisibleCard = (
     rating: car.rating || car.grade || undefined,
     initialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
     initialCommercialTotalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
+    prefetchedCalculation,
     images: buildFastApiCarImages(car, imageAlt),
   }
 }
@@ -120,6 +150,7 @@ export const mapFastApiCarToDescription = (
   const enginePower = Number(car.engine_cc || 0)
   const horsepower = Number(car.horsepower || 0)
   const mileageKm = normalizeMileage(car.mileage)
+  const initialTotalRub = Number(car.total_rub || car.price_details?.total_rub || 0)
 
   return {
     price: Number(car.calculation_price_jpy || car.average_price_jpy || car.price_jpy || 0),
@@ -137,6 +168,7 @@ export const mapFastApiCarToDescription = (
     rating: car.rating || car.grade || undefined,
     wheelPosition: undefined,
     engineType: 'gasoline',
+    prefetchedCalculation: buildPrefetchedCalculation(car, initialTotalRub),
   }
 }
 
