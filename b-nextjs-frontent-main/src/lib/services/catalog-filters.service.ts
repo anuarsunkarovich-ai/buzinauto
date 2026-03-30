@@ -27,6 +27,102 @@ const LOCAL_PAGE_LIMIT = 5000
 const normalizeText = (value: unknown) => String(value || '').trim()
 const normalizeIdentifier = (value: unknown) =>
   normalizeText(value).replace(/\\/g, '').replace(/^['"]+|['"]+$/g, '')
+const normalizeToken = (value: unknown) =>
+  normalizeText(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '')
+
+const BODY_STYLE_KEYWORDS = [
+  'SEDAN',
+  'HATCHBACK',
+  'WAGON',
+  'COUPE',
+  'SUV',
+  'VAN',
+  'MINIVAN',
+  'CROSSOVER',
+  'LIFTBACK',
+  'FASTBACK',
+  'ROADSTER',
+  'PICKUP',
+  'CABRIO',
+  'CABRIOLET',
+  'ESTATE',
+  'HARDTOP',
+]
+
+const TRIM_KEYWORDS = [
+  'SENSING',
+  'PACKAGE',
+  'PKG',
+  'LIMITED',
+  'EDITION',
+  'STANDARD',
+  'PREMIUM',
+  'LUXURY',
+  'SPORT',
+  'STYLE',
+  'BLACK',
+  'WHITE',
+  'EURO',
+  'TYPE',
+  'HEV',
+  'EHEV',
+]
+
+const looksLikeModelCode = (value: string) => {
+  const normalized = normalizeToken(value)
+  if (!normalized) {
+    return false
+  }
+
+  return /[0-9]/.test(normalized) && /[A-Z]/.test(normalized)
+}
+
+const looksLikeBodyStyle = (value: string) => {
+  const upper = normalizeText(value).toUpperCase()
+  if (!upper) {
+    return false
+  }
+
+  if (TRIM_KEYWORDS.some((keyword) => upper.includes(keyword))) {
+    return false
+  }
+
+  return BODY_STYLE_KEYWORDS.some((keyword) => upper.includes(keyword))
+}
+
+const normalizeBodyOptionFromSearchResult = (item: unknown): CatalogBodyOption | null => {
+  if (!item || typeof item !== 'object') {
+    return null
+  }
+
+  const record = item as UnknownRecord
+  const modelCode = normalizeIdentifier(record.model_code)
+  const bodyText = normalizeText(record.body)
+
+  const normalizedModelCode = normalizeToken(modelCode)
+  const normalizedBodyText = normalizeToken(bodyText)
+
+  if (looksLikeModelCode(modelCode)) {
+    return {
+      body: modelCode,
+      label:
+        looksLikeBodyStyle(bodyText) && normalizedBodyText !== normalizedModelCode
+          ? `${modelCode} ${bodyText}`.trim()
+          : modelCode,
+    }
+  }
+
+  if (looksLikeBodyStyle(bodyText)) {
+    return {
+      body: bodyText,
+      label: bodyText,
+    }
+  }
+
+  return null
+}
 
 const normalizeCountry = (country?: string) => {
   const value = normalizeText(country).toUpperCase()
@@ -120,20 +216,13 @@ const buildSearchFallbackBodies = (payload: unknown): CatalogBodyOption[] => {
   const grouped = new Map<string, CatalogBodyOption>()
 
   for (const item of results) {
-    if (!item || typeof item !== 'object') {
+    const normalizedOption = normalizeBodyOptionFromSearchResult(item)
+    if (!normalizedOption) {
       continue
     }
 
-    const entry = item as UnknownRecord
-    const body = normalizeText(entry.body)
-    const modelCode = normalizeIdentifier(entry.model_code)
-    if (!body) {
-      continue
-    }
-
-    const key = toUrlSlug(body)
+    const key = toUrlSlug(normalizedOption.body)
     const existing = grouped.get(key)
-    const label = [modelCode, body].filter(Boolean).join(' ').trim() || body
 
     if (existing) {
       existing.count = (existing.count || 0) + 1
@@ -141,8 +230,8 @@ const buildSearchFallbackBodies = (payload: unknown): CatalogBodyOption[] => {
     }
 
     grouped.set(key, {
-      body,
-      label,
+      body: normalizedOption.body,
+      label: normalizedOption.label || normalizedOption.body,
       count: 1,
     })
   }
@@ -360,21 +449,6 @@ export const fetchCatalogBodies = async (
   }
 
   try {
-    const filtersPayload = await fetchBackendJson<UnknownRecord>('auction/filters', {
-      query: {
-        brand_id: brand,
-        model_id: model,
-      },
-    })
-    const directBodies = normalizeBodyResponse(filtersPayload)
-    if (directBodies.length > 0) {
-      return directBodies
-    }
-  } catch (error) {
-    console.error('fetchCatalogBodies backend filters error:', error)
-  }
-
-  try {
     const payload = await fetchBackendJson<UnknownRecord>('search', {
       query: {
         brand,
@@ -389,6 +463,23 @@ export const fetchCatalogBodies = async (
     }
   } catch (error) {
     console.error('fetchCatalogBodies backend search error:', error)
+  }
+
+  try {
+    const filtersPayload = await fetchBackendJson<UnknownRecord>('auction/filters', {
+      query: {
+        brand_id: brand,
+        model_id: model,
+      },
+    })
+    const directBodies = normalizeBodyResponse(filtersPayload).filter(
+      (item) => looksLikeModelCode(item.body) || looksLikeBodyStyle(item.body),
+    )
+    if (directBodies.length > 0) {
+      return directBodies
+    }
+  } catch (error) {
+    console.error('fetchCatalogBodies backend filters error:', error)
   }
 
   const searchParams = new URLSearchParams()
