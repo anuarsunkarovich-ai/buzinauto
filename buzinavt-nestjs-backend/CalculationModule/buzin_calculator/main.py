@@ -135,18 +135,94 @@ def _sort_catalog_cars(cars: list[dict]) -> list[dict]:
     return sorted(cars, key=_sort_key, reverse=True)
 
 
-def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
-    # Sanitize input immediately - remove any quotes, backslashes, or whitespace
-    def clean_id(s: str) -> str:
-        if not s: return ""
-        # Remove literal backslashes and quotes
-        return str(s).strip().replace('\\', '').strip('"').strip("'").strip()
+def _clean_aleado_identifier(value: object) -> str:
+    if not value:
+        return ""
 
-    brand = clean_id(brand)
-    model = clean_id(model)
-    
+    return str(value).strip().replace("\\", "").strip('"').strip("'").strip()
+
+
+def _dedupe_cars(cars: list[dict]) -> list[dict]:
+    deduped: list[dict] = []
+    seen: set[str] = set()
+
+    for car in cars:
+        identity = _build_lot_identity(car)
+        if identity and identity in seen:
+            continue
+
+        if identity:
+            seen.add(identity)
+        deduped.append(car)
+
+    return deduped
+
+
+def _dedupe_model_ids(items: list[dict]) -> list[str]:
+    model_ids: list[str] = []
+    seen: set[str] = set()
+
+    for item in items:
+        item_id = _clean_aleado_identifier(item.get("id", ""))
+        if item_id in {"", "-1"} or item_id in seen:
+            continue
+
+        seen.add(item_id)
+        model_ids.append(item_id)
+
+    return model_ids
+
+
+def _get_model_match_groups(models: list[dict], model: str) -> tuple[list[dict], list[dict], list[dict]]:
+    normalized_model = _normalize_token(model)
+    if not normalized_model:
+        return [], [], []
+
+    exact_matches: list[dict] = []
+    family_matches: list[dict] = []
+    partial_matches: list[dict] = []
+
+    for item in models:
+        item_id = _clean_aleado_identifier(item.get("id", ""))
+        if item_id in {"", "-1"}:
+            continue
+
+        item_name_raw = str(item.get("name", "") or "")
+        item_display_raw = str(item.get("modelDisplay", "") or "")
+        item_id_norm = _normalize_token(item_id)
+        item_name = _normalize_token(item_name_raw)
+        item_display = _normalize_token(item_display_raw)
+        text_candidates = [candidate for candidate in [item_name, item_display] if candidate]
+        token_candidates = [
+            *_tokenize_filter_value(item_name_raw),
+            *_tokenize_filter_value(item_display_raw),
+        ]
+
+        is_exact = normalized_model in {item_id_norm, item_name, item_display}
+        is_family = any(candidate.startswith(normalized_model) for candidate in text_candidates) or any(
+            token.startswith(normalized_model) for token in token_candidates
+        )
+        is_partial = normalized_model and any(
+            normalized_model in candidate or candidate in normalized_model
+            for candidate in text_candidates
+        )
+
+        if is_exact:
+            exact_matches.append(item)
+        if is_family:
+            family_matches.append(item)
+        elif is_partial:
+            partial_matches.append(item)
+
+    return exact_matches, family_matches, partial_matches
+
+
+def resolve_aleado_model_ids(brand: str, model: str) -> tuple[str, list[str], bool]:
+    brand = _clean_aleado_identifier(brand)
+    model = _clean_aleado_identifier(model)
+
     brand_id = brand
-    model_id = model
+    matched_model_ids: list[str] = []
     model_matched = False
 
     try:
@@ -161,43 +237,69 @@ def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
             None,
         )
         if brand_match:
-            brand_id = clean_id(str(brand_match["id"]))
+            brand_id = _clean_aleado_identifier(str(brand_match["id"]))
 
         if not model:
-            return brand_id, "", False
+            return brand_id, [], False
 
         models = fetch_aleado_filters(brand_id)
-        normalized_model = _normalize_token(model)
-        model_match = None
-        for item in models:
-            item_raw_id = clean_id(str(item.get("id", "")))
-            if item_raw_id in {"", "-1"}:
-                continue
+        exact_matches, family_matches, partial_matches = _get_model_match_groups(models, model)
 
-            item_name = _normalize_token(str(item.get("name", "")))
-            item_display = _normalize_token(str(item.get("modelDisplay", "")))
-            item_id_norm = _normalize_token(item_raw_id)
-
-            if (
-                item_id_norm == _normalize_token(model)
-                or item_name == _normalize_token(model)
-                or item_display == _normalize_token(model)
-                or (normalized_model and item_name in normalized_model)
-                or (normalized_model and normalized_model in item_name)
-            ):
-                model_match = item
-                break
-
-        if model_match:
-            model_id = clean_id(str(model_match["id"]))
+        if family_matches:
+            matched_model_ids = _dedupe_model_ids(family_matches + exact_matches)
+            model_matched = True
+        elif exact_matches:
+            matched_model_ids = _dedupe_model_ids(exact_matches)
+            model_matched = True
+        elif partial_matches:
+            matched_model_ids = _dedupe_model_ids(partial_matches)
             model_matched = True
         elif models:
-            print(f"DEBUG: No exact model match for '{model}', setting model_id to empty")
-            model_id = ""
+            print(
+                f"DEBUG: No Aleado model family match for '{model}', searching the whole brand instead"
+            )
     except Exception as exc:
         print(f"DEBUG: Aleado ID resolution failed: {exc}")
 
-    return brand_id, model_id, model_matched
+    return brand_id, matched_model_ids, model_matched
+
+
+def resolve_aleado_ids(brand: str, model: str) -> tuple[str, str, bool]:
+    brand_id, model_ids, model_matched = resolve_aleado_model_ids(brand, model)
+    return brand_id, model_ids[0] if model_ids else "", model_matched
+
+
+async def _fetch_aleado_data_for_models(
+    brand_id: str,
+    model_ids: list[str],
+    *,
+    search_type: str,
+    body: str = "",
+    result_filter: str | None = None,
+) -> list[dict]:
+    effective_model_ids = model_ids or [""]
+    tasks = [
+        asyncio.to_thread(
+            fetch_aleado_data,
+            brand_id,
+            model_id,
+            search_type=search_type,
+            body=body,
+            result_filter=result_filter,
+        )
+        for model_id in effective_model_ids
+    ]
+
+    batches = await asyncio.gather(*tasks, return_exceptions=True)
+    merged: list[dict] = []
+
+    for model_id, batch in zip(effective_model_ids, batches):
+        if isinstance(batch, Exception):
+            print(f"DEBUG: Failed to fetch Aleado batch for {brand_id}/{model_id}: {batch}")
+            continue
+        merged.extend(batch or [])
+
+    return _sort_catalog_cars(_dedupe_cars(merged))
 
 
 def resolve_aleado_names(brand_id: str, model_id: str) -> tuple[str, str]:
@@ -393,29 +495,28 @@ async def search_and_calculate(
     sell_rate = atb_rates["sell"]
     duty_rate = get_cbr_jpy_rate()
     eur_rate = get_euro_rate()
-    resolved_brand, resolved_model, model_matched = resolve_aleado_ids(brand, model)
+    resolved_brand, resolved_models, model_matched = resolve_aleado_model_ids(brand, model)
+    resolved_model = resolved_models[0] if resolved_models else ""
+    requested_model_name = str(model or "").strip()
     print(
-        f"DEBUG: FINAL RESOLVED brand/model for search: {resolved_brand}/{resolved_model} (matched: {model_matched})"
+        "DEBUG: FINAL RESOLVED brand/models for search: "
+        f"{resolved_brand}/{resolved_models or ['ALL']} (matched: {model_matched})"
     )
     brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
     if include_completed:
-        cars = await asyncio.to_thread(
-            fetch_aleado_data,
+        cars = await _fetch_aleado_data_for_models(
             resolved_brand,
-            resolved_model,
+            resolved_models,
             search_type="stats",
-            body="",
             result_filter="2",
         )
     else:
-        cars = await asyncio.to_thread(
-            fetch_aleado_data,
+        cars = await _fetch_aleado_data_for_models(
             resolved_brand,
-            resolved_model,
+            resolved_models,
             search_type="max",
             body=str(body or ""),
         )
-        cars = _sort_catalog_cars(cars)
 
     # ── Apply Filters ────────────────────────────────────────────────────────
     if not include_completed:
@@ -593,7 +694,7 @@ async def search_and_calculate(
                     "total_rub": float(calculation.total_rub),
                 }
                 car["brand"] = car.get("brand") or brand_name
-                car["model"] = car.get("model") or model_name
+                car["model"] = car.get("model") or requested_model_name or model_name
                 car["modelDisplay"] = (
                     car.get("modelDisplay")
                     or " ".join(
@@ -650,21 +751,33 @@ def get_auction_filters(
         # Resolve potentially passed names/slugs to Aleado IDs
         brand = brand_id or ""
         model = model_id or ""
-        res_brand, res_model, _ = resolve_aleado_ids(brand, model)
+        res_brand, res_models, _ = resolve_aleado_model_ids(brand, model)
         
         # If we were looking for models for a brand
         if brand and not model:
             target_brand = res_brand
-            target_model = None
+            data = fetch_aleado_filters(target_brand)
         # If we were looking for bodies for a model
         elif model:
             target_brand = res_brand
-            target_model = res_model
+            target_models = res_models or [_clean_aleado_identifier(model)]
+            if len(target_models) <= 1:
+                data = fetch_aleado_filters(target_brand, target_models[0] if target_models else None)
+            else:
+                merged_bodies: list[dict] = []
+                seen_keys: set[str] = set()
+                for target_model in target_models:
+                    for item in fetch_aleado_filters(target_brand, target_model):
+                        key = _normalize_token(
+                            str(item.get("id") or item.get("name") or item.get("label") or "")
+                        )
+                        if not key or key in seen_keys:
+                            continue
+                        seen_keys.add(key)
+                        merged_bodies.append(item)
+                data = merged_bodies
         else:
-            target_brand = None
-            target_model = None
-
-        data = fetch_aleado_filters(target_brand, target_model)
+            data = fetch_aleado_filters()
         return {"status": "success", "results": data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -762,30 +875,30 @@ async def auction_stats(
         return AuctionStatsResponse(**payload)
 
     # ── Resolve human-readable names ──────────────────────────────────────────
-    resolved_brand, resolved_model, _ = resolve_aleado_ids(brand, model)
-    brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
+    resolved_brand, resolved_models, _ = resolve_aleado_model_ids(brand, model)
+    resolved_model = resolved_models[0] if resolved_models else ""
+    brand_name, resolved_model_name = resolve_aleado_names(resolved_brand, resolved_model)
+    model_name = str(model or "").strip() or resolved_model_name
 
     # ── Fetch raw lots ────────────────────────────────────────────────────────
     atb_rates = fetch_atb_jpy_rate()
     commercial_rate = atb_rates["sell"]
     duty_rate = get_cbr_jpy_rate()
 
-    cars = await asyncio.to_thread(
-        fetch_aleado_data,
+    cars = await _fetch_aleado_data_for_models(
         resolved_brand,
-        resolved_model,
+        resolved_models,
         search_type="stats",
         body=str(body or ""),
     )
     if not cars:
         print(
-            f"DEBUG: Stats search returned 0 rows for {resolved_brand}/{resolved_model}. "
+            f"DEBUG: Stats search returned 0 rows for {resolved_brand}/{resolved_models or ['ALL']}. "
             "Retrying with live search fallback."
         )
-        cars = await asyncio.to_thread(
-            fetch_aleado_data,
+        cars = await _fetch_aleado_data_for_models(
             resolved_brand,
-            resolved_model,
+            resolved_models,
             search_type="max",
             body="",
         )

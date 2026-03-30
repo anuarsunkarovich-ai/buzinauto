@@ -59,12 +59,10 @@ export const buildFastApiCarImages = (
   car: FastApiSearchCar,
   fallbackAlt: string,
 ): CarCarouselOnHoverCardImagePropsTypes[] => {
-  return getFastApiCarImageUrls(car)
-    .slice(0, 1)
-    .map((src, index) => ({
-      src,
-      alt: index === 0 ? fallbackAlt : `${fallbackAlt} ${index + 1}`,
-    }))
+  return getFastApiCarImageUrls(car).map((src, index) => ({
+    src,
+    alt: index === 0 ? fallbackAlt : `${fallbackAlt} ${index + 1}`,
+  }))
 }
 
 const buildPrefetchedCalculation = (

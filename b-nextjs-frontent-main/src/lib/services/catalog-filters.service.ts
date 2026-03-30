@@ -171,6 +171,37 @@ const dedupeBy = <T>(items: T[], getKey: (item: T) => string) => {
   })
 }
 
+const collapseFamilyModelOptions = (items: CatalogModelOption[]) => {
+  const normalizedItems = items.map((item, index) => ({
+    item,
+    index,
+    familyName: normalizeText(item.modelDisplay).replace(/\s+/g, ' ').toUpperCase(),
+  }))
+
+  const kept = normalizedItems.filter((entry) => {
+    if (!entry.familyName) {
+      return true
+    }
+
+    return !normalizedItems.some((candidate) => {
+      if (candidate.index === entry.index) {
+        return false
+      }
+
+      if (candidate.item.brand !== entry.item.brand || !candidate.familyName) {
+        return false
+      }
+
+      return (
+        candidate.familyName.length < entry.familyName.length &&
+        entry.familyName.startsWith(`${candidate.familyName} `)
+      )
+    })
+  })
+
+  return kept.map((entry) => entry.item)
+}
+
 export const normalizeBrandResponse = (payload: unknown): CatalogBrandOption[] => {
   if (!payload || typeof payload !== 'object') {
     return []
@@ -210,13 +241,15 @@ export const normalizeModelResponse = (
         ? record.data
         : []
 
-  return dedupeBy(
+  const dedupedModels = dedupeBy(
     source
       .map((item) => normalizeModelEntry(item, fallbackBrand))
       .filter((item): item is CatalogModelOption => item !== null)
       .filter((item) => item.model !== '-1'),
     (item) => `${toUrlSlug(item.brand)}::${toUrlSlug(item.modelSlug)}`,
   )
+
+  return collapseFamilyModelOptions(dedupedModels)
 }
 
 export const normalizeBodyResponse = (payload: unknown): CatalogBodyOption[] => {
