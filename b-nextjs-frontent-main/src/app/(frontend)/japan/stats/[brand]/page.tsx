@@ -35,6 +35,8 @@ export default async function JapanBrandStatsPage({
 }: Params) {
   const { brand } = await paramsPromise
   const searchParams = await searchParamsPromise
+  const currentPage =
+    typeof searchParams.page === 'string' ? Math.max(1, parseInt(searchParams.page) || 1) : 1
 
   const filters = {
     minMileageKm:
@@ -119,7 +121,13 @@ export default async function JapanBrandStatsPage({
             </div>
           }
         >
-          <AuctionAnalyticsBlock brand={toValidSlug(brand)} filters={filters} />
+          <AuctionAnalyticsBlock
+            brand={toValidSlug(brand)}
+            filters={filters}
+            page={currentPage}
+            pathname={`/japan/stats/${brand}`}
+            query={searchParams}
+          />
         </React.Suspense>
       </BoxContainer>
       <Footer />

@@ -1,5 +1,9 @@
 import { fetchBackend } from '@/lib/api/backend-fetch'
-import { searchCars, type FastApiSearchCar } from '@/lib/services/auction.service'
+import {
+  searchCars,
+  type FastApiSearchCar,
+  type SearchPagination,
+} from '@/lib/services/auction.service'
 
 export type AuctionStatsResponse = {
   status: string
@@ -35,6 +39,7 @@ export type AuctionStatsResponse = {
     sale_status?: string
     total_rub?: number
   }[]
+  recent_lots_pagination: SearchPagination
   exchange_rate: number
   cached: boolean
 }
@@ -105,6 +110,8 @@ export const buildAuctionStatsFallbackFromSearchResults = (
   brand: string,
   model?: string,
   exchangeRate = 0,
+  page = 1,
+  limit = 12,
 ): AuctionStatsResponse | null => {
   const priced = cars
     .filter((car) => isCompletedAuctionDate(car.auction_date))
@@ -140,10 +147,9 @@ export const buildAuctionStatsFallbackFromSearchResults = (
   const popularModification =
     Object.entries(modificationCounts).sort((left, right) => right[1] - left[1])[0]?.[0] || ''
 
-  const recentLots = priced
+  const sortedRecentLots = priced
     .slice()
     .sort((left, right) => String(right.car.auction_date || '').localeCompare(String(left.car.auction_date || '')))
-    .slice(0, 20)
     .map(({ car, priceJpy, priceRub }) => ({
       lot: String(car.lot || ''),
       brand: String(car.brand || brand).trim(),
@@ -163,6 +169,11 @@ export const buildAuctionStatsFallbackFromSearchResults = (
       sale_status: String(car.sale_status || ''),
       total_rub: Number((car.total_rub ?? car.price_details?.total_rub ?? priceRub) || 0),
     }))
+  const safeLimit = Math.max(1, limit)
+  const totalPages = Math.max(1, Math.ceil(sortedRecentLots.length / safeLimit))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const start = (safePage - 1) * safeLimit
+  const recentLots = sortedRecentLots.slice(start, start + safeLimit)
 
   const firstCar = priced[0]?.car
 
@@ -184,6 +195,14 @@ export const buildAuctionStatsFallbackFromSearchResults = (
     grade_distribution: gradeDistribution,
     popular_modification: popularModification,
     recent_lots: recentLots,
+    recent_lots_pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total_items: sortedRecentLots.length,
+      total_pages: totalPages,
+      has_next_page: safePage < totalPages,
+      has_prev_page: safePage > 1,
+    },
     exchange_rate: exchangeRate,
     cached: false,
   }
@@ -193,12 +212,16 @@ export const getAuctionStats = async (
   brand: string,
   model?: string,
   filters?: AuctionStatsFilters,
+  page = 1,
+  limit = 12,
 ): Promise<AuctionStatsResponse | null> => {
   try {
     const response = await fetchBackend('auction/stats', {
       query: {
         brand,
         model,
+        page,
+        limit,
         min_mileage_km: typeof filters?.minMileageKm === 'number' ? filters.minMileageKm : undefined,
         max_mileage_km: typeof filters?.maxMileageKm === 'number' ? filters.maxMileageKm : undefined,
         min_year: typeof filters?.minYear === 'number' ? filters.minYear : undefined,
@@ -234,6 +257,8 @@ export const getAuctionStats = async (
       brand,
       model,
       searchResponse.exchange_rate || 0,
+      page,
+      limit,
     )
   } catch (error) {
     console.error('getAuctionStats error:', error)
@@ -246,12 +271,20 @@ export const buildAuctionStatsUrl = (
   brand: string,
   model?: string,
   filters?: AuctionStatsFilters,
+  page?: number,
+  limit?: number,
 ) => {
   const url = new URL(`${baseUrl.replace(/\/$/, '')}/auction/stats`)
   url.searchParams.set('brand', brand)
 
   if (model) {
     url.searchParams.set('model', model)
+  }
+  if (typeof page === 'number') {
+    url.searchParams.set('page', String(page))
+  }
+  if (typeof limit === 'number') {
+    url.searchParams.set('limit', String(limit))
   }
   if (typeof filters?.minMileageKm === 'number') {
     url.searchParams.set('min_mileage_km', String(filters.minMileageKm))

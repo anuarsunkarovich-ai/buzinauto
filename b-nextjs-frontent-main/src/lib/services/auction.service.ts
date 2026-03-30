@@ -3,6 +3,7 @@ import { fetchBackendJson } from '@/lib/api/backend-fetch'
 export type SearchCarsParams = {
   brand: string
   model?: string
+  page?: number
   lot?: string
   includeCompleted?: boolean
   enrichDetails?: boolean
@@ -20,6 +21,15 @@ export type SearchCarsParams = {
   minPrice?: number
   maxPrice?: number
   limit?: number
+}
+
+export type SearchPagination = {
+  page: number
+  limit: number
+  total_items: number
+  total_pages: number
+  has_next_page: boolean
+  has_prev_page: boolean
 }
 
 export type FastApiSearchCar = {
@@ -83,6 +93,7 @@ export type FastApiSearchCar = {
 
 type FastApiSearchResponse = {
   results: FastApiSearchCar[]
+  pagination?: SearchPagination
   exchange_rate?: number
   rate_source?: string
   rate_date?: string
@@ -94,6 +105,7 @@ type FastApiSearchPayload = FastApiSearchResponse | FastApiSearchCar[]
 
 type SearchCarsResponse = {
   results: FastApiSearchCar[]
+  pagination?: SearchPagination
   exchange_rate?: number
   rate_source?: string
   rate_date?: string
@@ -169,6 +181,7 @@ const matchesModelQuery = (car: FastApiSearchCar, modelQuery: string) => {
 export const searchCars = async ({
   brand,
   model,
+  page,
   lot,
   includeCompleted,
   enrichDetails,
@@ -191,6 +204,7 @@ export const searchCars = async ({
     query: {
       brand,
       model,
+      page: typeof page === 'number' ? page : undefined,
       lot,
       include_completed: includeCompleted ? '1' : undefined,
       enrich_details: enrichDetails ? '1' : undefined,
@@ -225,6 +239,7 @@ export const searchCars = async ({
 
   return {
     results: normalizedResults,
+    pagination: responseMeta?.pagination,
     exchange_rate: responseMeta?.exchange_rate,
     rate_source: responseMeta?.rate_source,
     rate_date: responseMeta?.rate_date,

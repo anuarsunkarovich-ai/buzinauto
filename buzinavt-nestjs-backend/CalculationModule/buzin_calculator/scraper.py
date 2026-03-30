@@ -1451,7 +1451,50 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
 
 
 def fetch_aleado_average_price(detail_link: str) -> int:
-    return int(fetch_aleado_lot_details(detail_link).get("average_price_jpy") or 0)
+    if not detail_link:
+        return 0
+
+    cache_key = _get_lot_cache_key(detail_link)
+    cached_average = _get_cached_average_price(cache_key)
+    if cached_average is not None:
+        return int(cached_average)
+
+    cached_details = _get_cached_payload(
+        _LOT_DETAILS_CACHE,
+        cache_key,
+        LOT_DETAILS_CACHE_TTL_SECONDS,
+    )
+    if cached_details is not None:
+        cached_detail_average = int(cached_details.get("average_price_jpy") or 0)
+        if cached_detail_average > 0:
+            _set_cached_average_price(cache_key, cached_detail_average)
+            return cached_detail_average
+
+    try:
+        parsed = urlparse(detail_link)
+        path = parsed.path or "/auctions/"
+        base_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        detail_response = _fetch_aleado_page(path, params=base_params)
+        average_args = _extract_average_price_args(detail_response.text)
+        if len(average_args) < 9:
+            return 0
+
+        average_html = call_aleado_sajax("getAveragePrice", average_args, path=path)
+        if not average_html:
+            return 0
+
+        soup = BeautifulSoup(average_html, "html.parser")
+        average_node = soup.find(id="average-price-sum")
+        if not average_node:
+            return 0
+
+        average_price = _extract_first_number(average_node.get_text(" ", strip=True))
+        if average_price > 0:
+            _set_cached_average_price(cache_key, average_price)
+        return average_price
+    except Exception as exc:
+        print(f"DEBUG: Aleado average price fetch failed: {exc}")
+        return 0
 
 
 def _fetch_aleado_data_single_page(

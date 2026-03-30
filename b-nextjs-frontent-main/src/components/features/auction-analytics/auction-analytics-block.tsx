@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { CarCarouselOnHoverCard } from '@/components/features/car-carousel/car-carousel-on-hover-card'
 import { CarVisibleCard } from '@/components/features/car-carousel/car-visible-card'
+import { QueryPagination } from '@/components/features/query-pagination'
 import { getAuctionStats } from '@/lib/services/auction-stats.service'
 import { toUrlSlug } from '@/lib/transform'
 import { PriceCalculatorFallback } from './price-calculator'
@@ -15,8 +16,7 @@ const getLotStatus = (saleStatus: string) => {
   if (isSold) {
     return {
       badgeLabel: 'SOLD',
-      badgeClass:
-        'border-white/20 bg-destructive/90 text-white shadow-lg shadow-destructive/20',
+      badgeClass: 'border-white/20 bg-destructive/90 text-white shadow-lg shadow-destructive/20',
     }
   }
 
@@ -37,6 +37,9 @@ export const AuctionAnalyticsBlock = async ({
   brand,
   model,
   filters,
+  page = 1,
+  pathname,
+  query,
 }: {
   brand: string
   model?: string
@@ -49,8 +52,11 @@ export const AuctionAnalyticsBlock = async ({
     maxGrade?: string
     body?: string
   }
+  page?: number
+  pathname: string
+  query?: Record<string, string | string[] | undefined>
 }) => {
-  const stats = await getAuctionStats(brand, model, filters)
+  const stats = await getAuctionStats(brand, model, filters, page, 12)
   if (!stats || stats.total_lots === 0) {
     return (
       <Card className="border-border/60 bg-card/70">
@@ -62,13 +68,10 @@ export const AuctionAnalyticsBlock = async ({
     )
   }
 
-  const chartData = stats.recent_lots
-    .slice(0, 20)
-    .reverse()
-    .map((lot) => ({
-      label: lot.auction_date,
-      value: lot.price_jpy,
-    }))
+  const chartData = stats.recent_lots.slice().reverse().map((lot) => ({
+    label: lot.auction_date,
+    value: lot.price_jpy,
+  }))
 
   return (
     <div className="flex flex-col space-y-6">
@@ -151,7 +154,16 @@ export const AuctionAnalyticsBlock = async ({
       </Card>
 
       <div>
-        <h3 className="mb-4 text-xl font-bold">Недавние лоты (статистика)</h3>
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h3 className="text-xl font-bold">Недавние лоты (статистика)</h3>
+            <p className="text-sm text-muted-foreground">
+              Страница {stats.recent_lots_pagination.page} из{' '}
+              {stats.recent_lots_pagination.total_pages}, всего{' '}
+              {stats.recent_lots_pagination.total_items} лотов.
+            </p>
+          </div>
+        </div>
         <div
           className={`
             grid grid-cols-1 gap-4
@@ -159,7 +171,7 @@ export const AuctionAnalyticsBlock = async ({
             lg:grid-cols-4
           `}
         >
-          {stats.recent_lots.slice(0, 8).map((lot) => {
+          {stats.recent_lots.map((lot) => {
             const mileageKm = Number(String(lot.mileage ?? 0).replace(/[^\d]/g, '')) || 0
             const year = Number(lot.year) || new Date().getFullYear()
             const enginePower = Number(lot.engine_cc) || 0
@@ -188,10 +200,7 @@ export const AuctionAnalyticsBlock = async ({
                     id={lot.lot}
                     brandSlug={toUrlSlug(lot.brand)}
                     countryPath="/japan"
-                    description={[
-                      lot.transmission,
-                      mileageKm ? `${mileageKm} км.` : undefined,
-                    ]
+                    description={[lot.transmission, mileageKm ? `${mileageKm} км.` : undefined]
                       .filter(Boolean)
                       .join(', ')}
                     tags={[
@@ -226,6 +235,16 @@ export const AuctionAnalyticsBlock = async ({
               </div>
             )
           })}
+        </div>
+        <div className="mt-6">
+          <QueryPagination
+            path={pathname}
+            query={query}
+            page={stats.recent_lots_pagination.page}
+            totalPages={stats.recent_lots_pagination.total_pages}
+            hasNextPage={stats.recent_lots_pagination.has_next_page}
+            hasPrevPage={stats.recent_lots_pagination.has_prev_page}
+          />
         </div>
       </div>
     </div>

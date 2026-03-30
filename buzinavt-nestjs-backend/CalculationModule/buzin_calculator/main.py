@@ -373,6 +373,15 @@ class PriceRange(BaseModel):
     max_rub: float
 
 
+class PaginationInfo(BaseModel):
+    page: int
+    limit: int
+    total_items: int
+    total_pages: int
+    has_next_page: bool
+    has_prev_page: bool
+
+
 class AuctionStatsResponse(BaseModel):
     status: str
     brand: str
@@ -384,6 +393,7 @@ class AuctionStatsResponse(BaseModel):
     grade_distribution: dict[str, int]
     popular_modification: str
     recent_lots: list[RecentLot]
+    recent_lots_pagination: PaginationInfo
     exchange_rate: float
     duty_exchange_rate: float | None = None
     duty_rate_source: str | None = None
@@ -433,6 +443,82 @@ def _safe_number(value: object) -> float:
         return 0.0
 
 
+def _resolve_average_price_jpy(car: dict, details: dict | None = None) -> int:
+    details = details or {}
+
+    average_price_jpy = int(
+        _safe_number(
+            details.get("average_price_jpy")
+            or car.get("average_price_jpy")
+            or 0
+        )
+    )
+    if average_price_jpy > 0:
+        return average_price_jpy
+
+    detail_link = str(car.get("detail_link") or "").strip()
+    if not detail_link:
+        return 0
+
+    try:
+        return int(_safe_number(fetch_aleado_average_price(detail_link)))
+    except Exception as exc:
+        print(
+            f"DEBUG: Failed to resolve Aleado average price for lot {car.get('lot')}: {exc}"
+        )
+        return 0
+
+
+def _build_pagination_info(
+    total_items: int,
+    page: int | None,
+    limit: int | None,
+    *,
+    default_limit: int = 12,
+    max_limit: int = 100,
+) -> PaginationInfo:
+    safe_total = max(0, int(total_items or 0))
+    safe_limit = int(limit or default_limit)
+    if safe_limit <= 0:
+        safe_limit = default_limit
+    safe_limit = min(safe_limit, max_limit)
+
+    total_pages = max(1, (safe_total + safe_limit - 1) // safe_limit) if safe_total else 1
+    safe_page = int(page or 1)
+    if safe_page <= 0:
+        safe_page = 1
+    safe_page = min(safe_page, total_pages)
+
+    return PaginationInfo(
+        page=safe_page,
+        limit=safe_limit,
+        total_items=safe_total,
+        total_pages=total_pages,
+        has_next_page=safe_page < total_pages,
+        has_prev_page=safe_page > 1,
+    )
+
+
+def _paginate_items(
+    items: list[dict],
+    page: int | None,
+    limit: int | None,
+    *,
+    default_limit: int = 12,
+    max_limit: int = 100,
+) -> tuple[list[dict], PaginationInfo]:
+    pagination = _build_pagination_info(
+        len(items),
+        page,
+        limit,
+        default_limit=default_limit,
+        max_limit=max_limit,
+    )
+    start = (pagination.page - 1) * pagination.limit
+    end = start + pagination.limit
+    return items[start:end], pagination
+
+
 def _is_completed_auction_date(value: object) -> bool:
     text = str(value or "").strip()
     if not text:
@@ -470,6 +556,7 @@ def _is_catalog_active_lot(car: dict) -> bool:
 async def search_and_calculate(
     brand: str = "9",
     model: str = "",
+    page: int = Query(1, description="Results page number"),
     lot: str | None = None,
     auction_date: str | None = None,
     body: str | None = None,
@@ -488,7 +575,7 @@ async def search_and_calculate(
     enrich_details: bool = Query(
         False, description="Fetch lot detail page data such as gallery and auction sheet"
     ),
-    limit: int | None = Query(None, description="Max number of cars to return"),
+    limit: int | None = Query(None, description="Max number of cars to return per page"),
 ):
     atb_rates = fetch_atb_jpy_rate()
     commercial_rate = atb_rates["sell"]
@@ -586,13 +673,13 @@ async def search_and_calculate(
         ]
 
     cars = _sort_catalog_cars(cars)
-
-    # Limit the number of cars BEFORE enrichment to avoid excessive network calls
-    if limit and limit > 0:
-        cars = cars[:limit]
-    else:
-        # Default safety limit if not specified
-        cars = cars[:50]
+    cars, pagination = _paginate_items(
+        cars,
+        page,
+        limit,
+        default_limit=12,
+        max_limit=100,
+    )
 
     # Use a semaphore to limit concurrent network requests to Aleado
     semaphore = asyncio.Semaphore(10)
@@ -626,9 +713,8 @@ async def search_and_calculate(
                     else 0
                 )
                 horsepower = _resolve_car_horsepower(car, detail_hp)
-
-                average_price_jpy = int(
-                    _safe_number(details.get("average_price_jpy") or 0)
+                average_price_jpy = await asyncio.to_thread(
+                    _resolve_average_price_jpy, car, details
                 )
                 calculation_price_jpy = average_price_jpy or lot_price_jpy
 
@@ -734,6 +820,7 @@ async def search_and_calculate(
     return {
         "status": "success",
         "results": enriched,
+        "pagination": pagination.model_dump(),
         "exchange_rate": commercial_rate,
         "rate_source": "ATB Bank",
         "duty_exchange_rate": duty_rate,
@@ -853,6 +940,8 @@ async def sync_cars(brand_id: str = "9", model_id: str = "718"):
 async def auction_stats(
     brand: str = Query("9", description="Brand ID or slug"),
     model: str = Query("", description="Model ID or slug (optional)"),
+    page: int = Query(1, description="Recent lots page number"),
+    limit: int = Query(12, description="Recent lots page size"),
     body: str | None = Query(None, description="Body type (optional)"),
     min_mileage_km: int = Query(None),
     max_mileage_km: int = Query(None),
@@ -865,7 +954,13 @@ async def auction_stats(
     Results are cached in memory for 1 hour to incorporate current filters.
     """
     # ── Create unique cache key for current filter set ────────────────────────
-    filters_str = f"mil_{min_mileage_km}-{max_mileage_km}yr_{min_year}-{max_year}grade_{min_grade}-{max_grade}_body_{body}"
+    filters_str = (
+        f"mil_{min_mileage_km}-{max_mileage_km}"
+        f"yr_{min_year}-{max_year}"
+        f"grade_{min_grade}-{max_grade}"
+        f"_body_{body}"
+        f"_page_{page}_limit_{limit}"
+    )
     cache_key = f"{brand}::{model}::{filters_str}"
 
     cached = _STATS_CACHE.get(cache_key)
@@ -959,6 +1054,13 @@ async def auction_stats(
             "grade_distribution": {},
             "popular_modification": "",
             "recent_lots": [],
+            "recent_lots_pagination": _build_pagination_info(
+                0,
+                page,
+                limit,
+                default_limit=12,
+                max_limit=50,
+            ).model_dump(),
             "exchange_rate": commercial_rate,
             "duty_exchange_rate": duty_rate,
             "duty_rate_source": "CBR",
@@ -970,12 +1072,32 @@ async def auction_stats(
 
     # ── Aggregate stats ───────────────────────────────────────────────────────
     # Use same calculator math as search_and_calculate to compute real RUB totals
+    price_lookup_semaphore = asyncio.Semaphore(10)
+
+    async def _build_price_snapshot(car: dict) -> dict:
+        async with price_lookup_semaphore:
+            lot_price_jpy = _to_int_price(car.get("price_jpy", 0))
+            average_price_jpy = await asyncio.to_thread(_resolve_average_price_jpy, car)
+            calculation_price_jpy = average_price_jpy or lot_price_jpy
+            return {
+                "car": car,
+                "lot_price_jpy": lot_price_jpy,
+                "average_price_jpy": average_price_jpy,
+                "calculation_price_jpy": calculation_price_jpy,
+            }
+
+    priced_snapshots = await asyncio.gather(
+        *(_build_price_snapshot(car) for car in priced)
+    )
+
     total_rub_list: list[float] = []
     total_rub_by_lot: dict[str, float] = {}
+    calculation_price_by_lot: dict[str, int] = {}
     prices_jpy = []
-    for c in priced:
-        lot_price_jpy = _to_int_price(c.get("price_jpy", 0))
-        prices_jpy.append(lot_price_jpy)
+    for snapshot in priced_snapshots:
+        c = snapshot["car"]
+        calculation_price_jpy = snapshot["calculation_price_jpy"]
+        prices_jpy.append(calculation_price_jpy)
         engine_cc = int(c.get("engine_cc") or 1500)
         hp = _resolve_car_horsepower(c)
 
@@ -986,7 +1108,7 @@ async def auction_stats(
 
         calculation = run_total_calculation(
             CalculationContext(
-                price_jpy=lot_price_jpy,
+                price_jpy=calculation_price_jpy,
                 engine_volume=engine_cc,
                 horsepower=hp,
                 age_category=age_cat,
@@ -1001,7 +1123,9 @@ async def auction_stats(
         )
         calculated_total_rub = float(calculation.total_rub)
         total_rub_list.append(calculated_total_rub)
-        total_rub_by_lot[_build_lot_identity(c)] = calculated_total_rub
+        lot_identity = _build_lot_identity(c)
+        total_rub_by_lot[lot_identity] = calculated_total_rub
+        calculation_price_by_lot[lot_identity] = calculation_price_jpy
 
     avg_jpy = int(sum(prices_jpy) / len(prices_jpy))
     min_jpy = min(prices_jpy)
@@ -1023,7 +1147,14 @@ async def auction_stats(
     def _sort_key(c: dict) -> str:
         return str(c.get("auction_date") or "")
 
-    sorted_cars = sorted(priced, key=_sort_key, reverse=True)[:20]
+    sorted_cars = sorted(priced, key=_sort_key, reverse=True)
+    paged_recent_cars, recent_lots_pagination = _paginate_items(
+        sorted_cars,
+        page,
+        limit,
+        default_limit=12,
+        max_limit=50,
+    )
 
     recent_lots = [
         RecentLot(
@@ -1035,7 +1166,10 @@ async def auction_stats(
             horsepower=_resolve_car_horsepower(c),
             mileage=str(c.get("mileage") or ""),
             grade=str(c.get("grade") or c.get("rating") or ""),
-            price_jpy=_to_int_price(c.get("price_jpy", 0)),
+            price_jpy=calculation_price_by_lot.get(
+                _build_lot_identity(c),
+                _to_int_price(c.get("price_jpy", 0)),
+            ),
             price_rub=round(
                 total_rub_by_lot.get(
                     _build_lot_identity(c),
@@ -1057,7 +1191,7 @@ async def auction_stats(
             body=str(c.get("body") or ""),
             sale_status=str(c.get("sale_status") or ""),
         )
-        for c in sorted_cars
+        for c in paged_recent_cars
     ]
 
     avg_total_rub = (
@@ -1082,6 +1216,7 @@ async def auction_stats(
         "grade_distribution": grade_dist,
         "popular_modification": popular_modification,
         "recent_lots": [lot.model_dump() for lot in recent_lots],
+        "recent_lots_pagination": recent_lots_pagination.model_dump(),
         "exchange_rate": commercial_rate,
         "duty_exchange_rate": duty_rate,
         "duty_rate_source": "CBR",
