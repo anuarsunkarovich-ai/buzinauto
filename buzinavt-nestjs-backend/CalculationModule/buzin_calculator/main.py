@@ -255,9 +255,7 @@ def resolve_aleado_model_ids(brand: str, model: str) -> tuple[str, list[str], bo
             matched_model_ids = _dedupe_model_ids(partial_matches)
             model_matched = True
         elif models:
-            print(
-                f"DEBUG: No Aleado model family match for '{model}', searching the whole brand instead"
-            )
+            print(f"DEBUG: No Aleado model family match for '{model}'")
     except Exception as exc:
         print(f"DEBUG: Aleado ID resolution failed: {exc}")
 
@@ -519,6 +517,34 @@ def _paginate_items(
     return items[start:end], pagination
 
 
+def _build_empty_search_payload(
+    *,
+    exchange_rate: float,
+    rate_source: str,
+    duty_exchange_rate: float,
+    duty_rate_source: str,
+    page: int | None,
+    limit: int | None,
+) -> dict:
+    pagination = _build_pagination_info(
+        0,
+        page,
+        limit,
+        default_limit=12,
+        max_limit=100,
+    )
+    return {
+        "status": "success",
+        "results": [],
+        "pagination": pagination.model_dump(),
+        "exchange_rate": exchange_rate,
+        "rate_source": rate_source,
+        "duty_exchange_rate": duty_exchange_rate,
+        "duty_rate_source": duty_rate_source,
+        "rate_date": datetime.now().strftime("%d.%m.%Y"),
+    }
+
+
 def _is_completed_auction_date(value: object) -> bool:
     text = str(value or "").strip()
     if not text:
@@ -589,6 +615,15 @@ async def search_and_calculate(
         "DEBUG: FINAL RESOLVED brand/models for search: "
         f"{resolved_brand}/{resolved_models or ['ALL']} (matched: {model_matched})"
     )
+    if requested_model_name and not model_matched and not resolved_models:
+        return _build_empty_search_payload(
+            exchange_rate=commercial_rate,
+            rate_source="ATB Bank",
+            duty_exchange_rate=duty_rate,
+            duty_rate_source="CBR",
+            page=page,
+            limit=limit,
+        )
     brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
     if include_completed:
         cars = await _fetch_aleado_data_for_models(
@@ -848,6 +883,8 @@ def get_auction_filters(
         elif model:
             target_brand = res_brand
             target_models = res_models or [_clean_aleado_identifier(model)]
+            if model and not res_models:
+                return {"status": "success", "results": []}
             if len(target_models) <= 1:
                 data = fetch_aleado_filters(target_brand, target_models[0] if target_models else None)
             else:
@@ -974,6 +1011,37 @@ async def auction_stats(
     resolved_model = resolved_models[0] if resolved_models else ""
     brand_name, resolved_model_name = resolve_aleado_names(resolved_brand, resolved_model)
     model_name = str(model or "").strip() or resolved_model_name
+    if model and not resolved_models:
+        atb_rates = fetch_atb_jpy_rate()
+        commercial_rate = atb_rates["sell"]
+        duty_rate = get_cbr_jpy_rate()
+        empty_pagination = _build_pagination_info(
+            0,
+            page,
+            limit,
+            default_limit=12,
+            max_limit=50,
+        )
+        empty_payload: dict = {
+            "status": "success",
+            "brand": brand_name,
+            "model": model_name,
+            "total_lots": 0,
+            "avg_price_jpy": 0,
+            "avg_price_rub": 0.0,
+            "price_range": {"min_jpy": 0, "max_jpy": 0, "min_rub": 0.0, "max_rub": 0.0},
+            "grade_distribution": {},
+            "popular_modification": "",
+            "recent_lots": [],
+            "recent_lots_pagination": empty_pagination.model_dump(),
+            "exchange_rate": commercial_rate,
+            "duty_exchange_rate": duty_rate,
+            "duty_rate_source": "CBR",
+            "cached": False,
+            "rate_date": datetime.now().strftime("%d.%m.%Y"),
+        }
+        _STATS_CACHE[cache_key] = {"data": empty_payload, "ts": time.time()}
+        return AuctionStatsResponse(**empty_payload)
 
     # ── Fetch raw lots ────────────────────────────────────────────────────────
     atb_rates = fetch_atb_jpy_rate()

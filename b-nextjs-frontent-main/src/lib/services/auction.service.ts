@@ -234,11 +234,9 @@ export const searchCars = async ({
   const filteredResults = rawResults
     .filter((car) => (model ? matchesModelQuery(car, model) : true))
     .filter((car) => (body ? matchesBodyQuery(car, body) : true))
-  const normalizedResults =
-    filteredResults.length > 0 || (!model && !body) ? filteredResults : rawResults
 
   return {
-    results: normalizedResults,
+    results: filteredResults,
     pagination: responseMeta?.pagination,
     exchange_rate: responseMeta?.exchange_rate,
     rate_source: responseMeta?.rate_source,

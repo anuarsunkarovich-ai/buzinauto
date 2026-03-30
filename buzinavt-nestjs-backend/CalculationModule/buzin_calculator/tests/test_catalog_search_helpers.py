@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
 
 from main import (  # noqa: E402
     _build_pagination_info,
+    _build_empty_search_payload,
     _paginate_items,
     _resolve_average_price_jpy,
     resolve_aleado_ids,
@@ -46,6 +47,22 @@ class CatalogSearchHelpersTests(unittest.TestCase):
         self.assertEqual(pagination.total_pages, 3)
         self.assertTrue(pagination.has_next_page)
         self.assertTrue(pagination.has_prev_page)
+
+    def test_build_empty_search_payload_returns_empty_paginated_response(self) -> None:
+        payload = _build_empty_search_payload(
+            exchange_rate=0.55,
+            rate_source="ATB Bank",
+            duty_exchange_rate=0.53,
+            duty_rate_source="CBR",
+            page=3,
+            limit=12,
+        )
+
+        self.assertEqual(payload["results"], [])
+        self.assertEqual(payload["pagination"]["page"], 1)
+        self.assertEqual(payload["pagination"]["total_items"], 0)
+        self.assertFalse(payload["pagination"]["has_next_page"])
+        self.assertFalse(payload["pagination"]["has_prev_page"])
 
     @patch("main.fetch_aleado_average_price")
     def test_resolve_average_price_prefers_existing_detail_average(self, mock_fetch_average) -> None:
