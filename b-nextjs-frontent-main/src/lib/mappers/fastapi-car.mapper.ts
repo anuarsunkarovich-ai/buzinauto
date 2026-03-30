@@ -73,9 +73,9 @@ const buildPrefetchedCalculation = (
     ? {
         totalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
         commercialRate:
-          car.price_details?.bank_sell_rate ??
+          car.price_details?.bank_buy_rate ??
           car.price_details?.exchange_rate ??
-          car.price_details?.bank_buy_rate,
+          car.price_details?.bank_sell_rate,
         bankBuyRate: car.price_details?.bank_buy_rate,
         bankSellRate: car.price_details?.bank_sell_rate,
         rateDate: car.price_details?.rate_date,

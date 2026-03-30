@@ -40,6 +40,8 @@ type CalculationResponse = {
     customs_duty_rub?: number
     util_fee_rub?: number
     company_commission?: number
+    effective_usage_type?: 'commercial' | 'private'
+    forced_commercial?: boolean
   }
 }
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -175,7 +177,7 @@ export const PriceCalculationModule: React.FC = () => {
   }, [calculate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Computed values
-  const commercialRate = result?.bank_sell_rate ?? result?.exchange_rate ?? result?.bank_buy_rate ?? 0
+  const commercialRate = result?.bank_buy_rate ?? result?.exchange_rate ?? result?.bank_sell_rate ?? 0
   const exchangeRate = commercialRate
   const auctionRub = exchangeRate > 0 ? Math.round(auctionPriceJpy * exchangeRate) : 0
   const japanRub = Math.round(result?.breakdown?.buy_and_delivery_rub || 0)
@@ -183,6 +185,8 @@ export const PriceCalculationModule: React.FC = () => {
   const dutyRub = Math.round(result?.breakdown?.customs_duty_rub || 0)
   const utilRub = Math.round(result?.breakdown?.util_fee_rub || 0)
   const totalRub = Math.round(result?.total_rub || 0)
+  const effectiveUsageType = result?.breakdown?.effective_usage_type || usageType
+  const forcedCommercial = Boolean(result?.breakdown?.forced_commercial)
 
   const selectedCityLabel =
     DELIVERY_CITIES.find((c) => c.value === deliveryCity)?.label ?? deliveryCity
@@ -432,11 +436,20 @@ export const PriceCalculationModule: React.FC = () => {
 
           {/* Util fee */}
           <CostRow
-            title={usageType === 'commercial' ? 'Коммерческий утильсбор' : 'Льготный утильсбор'}
+            title={
+              effectiveUsageType === 'commercial'
+                ? 'Коммерческий утильсбор'
+                : 'Льготный утильсбор'
+            }
             amount={utilRub}
             subItems={
-              usageType === 'commercial'
-                ? ['Рассчитывается по коммерческой сетке', 'Зависит от объёма двигателя и возраста']
+              effectiveUsageType === 'commercial'
+                ? [
+                    'Рассчитывается по коммерческой сетке',
+                    forcedCommercial
+                      ? 'Ставка применена автоматически по мощности двигателя'
+                      : 'Зависит от объёма двигателя и возраста',
+                  ]
                 : ['Для личного авто', 'Льготная ставка отображается отдельно']
             }
           />

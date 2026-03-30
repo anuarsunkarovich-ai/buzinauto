@@ -117,9 +117,9 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
   }, [prefetchedCalculation, totalRubAmount])
 
   const effectiveCommercialRate =
+    prefetchedCalculation?.bankBuyRate ||
     prefetchedCalculation?.commercialRate ||
     prefetchedCalculation?.bankSellRate ||
-    prefetchedCalculation?.bankBuyRate ||
     commercialRate
 
   const effectiveBuyAndDeliveryJpy =
@@ -261,7 +261,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
                           </Text>
                           {effectiveCommercialRate && (
                             <Text as="small" className="text-center text-muted-foreground">
-                              Актуальный коммерческий курс иены банка АТБ
+                              Актуальный курс иены банка АТБ
                               {effectiveRateDate ? ` на ${effectiveRateDate}` : ''} составляет:{' '}
                               {effectiveCommercialRate}
                             </Text>

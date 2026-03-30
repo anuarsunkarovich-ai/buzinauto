@@ -245,7 +245,7 @@ export function useCarFeeFuncEnum(
   }, [price, enginePower, horsepower, carAge, engineType, currency, usageType])
 
   const commercialRate =
-    result?.bank_sell_rate ?? result?.exchange_rate ?? result?.bank_buy_rate ?? 0
+    result?.bank_buy_rate ?? result?.exchange_rate ?? result?.bank_sell_rate ?? 0
   const exchangeRate = commercialRate
   const breakdown = result?.breakdown
 

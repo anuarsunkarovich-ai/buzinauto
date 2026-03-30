@@ -9,12 +9,14 @@ from typing import Any
 from config import (
     BASE_UTIL_FEE_RUB,
     COMMERCIAL_USAGE,
+    COMMERCIAL_TRIGGER_HORSEPOWER,
     CUSTOMS_BROKER_RUB,
     CUSTOMS_CLEARANCE_FEES_RUB,
     CUSTOMS_CLEARANCE_FEE_MAX_RUB,
     DUTY_RATES_3_TO_5,
     DUTY_RATES_5_PLUS,
     DUTY_RATES_NEW,
+    ELECTRIC_PREFERENTIAL_TRIGGER_HORSEPOWER,
     EXCISE_RATES_BY_YEAR,
     HP_TO_KW,
     INDIVIDUAL_ELECTRIC_BRACKETS,
@@ -157,7 +159,13 @@ def is_electric_engine(engine_type: str | None) -> bool:
 
 
 def should_force_commercial(engine_type: str, horsepower: int) -> bool:
-    return False
+    if horsepower <= 0:
+        return False
+
+    if is_electric_engine(engine_type):
+        return horsepower > ELECTRIC_PREFERENTIAL_TRIGGER_HORSEPOWER
+
+    return horsepower > COMMERCIAL_TRIGGER_HORSEPOWER
 
 
 def resolve_effective_modes(

@@ -408,7 +408,7 @@ STATS_CACHE_TTL = 8 * 3600  # 8 hours
 def get_exchange_rate() -> RateResponse:
     rates = fetch_atb_jpy_rate()
     return RateResponse(
-        rate=rates["sell"], source="ATB Bank", date=datetime.now().strftime("%d.%m.%Y")
+        rate=rates["buy"], source="ATB Bank", date=datetime.now().strftime("%d.%m.%Y")
     )
 
 
@@ -416,7 +416,7 @@ def get_exchange_rate() -> RateResponse:
 @app.get("/api/v1/rate/latest/RUB")
 def get_mock_exchange_rate(api_key: str = None):
     rates = fetch_atb_jpy_rate()
-    rate_rub_per_jpy = rates["sell"]
+    rate_rub_per_jpy = rates["buy"]
     return {
         "result": "success",
         "doc": "https://www.exchangerate-api.com/docs",
@@ -604,7 +604,7 @@ async def search_and_calculate(
     limit: int | None = Query(None, description="Max number of cars to return per page"),
 ):
     atb_rates = fetch_atb_jpy_rate()
-    commercial_rate = atb_rates["sell"]
+    commercial_rate = atb_rates["buy"]
     sell_rate = atb_rates["sell"]
     duty_rate = get_cbr_jpy_rate()
     eur_rate = get_euro_rate()
@@ -777,7 +777,7 @@ async def search_and_calculate(
                         usage_type=usage_type,
                         user_type="individual",
                         engine_type=str(car.get("engine_type") or "gasoline"),
-                        year=car_year,
+                        year=current_year,
                     )
                 )
 
@@ -809,6 +809,7 @@ async def search_and_calculate(
                     "bank_sell_rate": sell_rate,
                     "duty_exchange_rate": duty_rate,
                     "duty_rate_source": "CBR",
+                    "rate_date": datetime.now().strftime("%d.%m.%Y"),
                     "usage_type": calculation.effective_usage_type,
                     "user_type": calculation.effective_user_type,
                     "forced_commercial": calculation.forced_commercial,
@@ -911,7 +912,7 @@ def get_auction_filters(
 async def calculate_total(request: CalculationRequest) -> CalculationResponse:
     print(f"DEBUG: Received request: {request}")
     atb_rates = fetch_atb_jpy_rate()
-    commercial_rate = atb_rates["sell"]
+    commercial_rate = atb_rates["buy"]
     sell_rate = atb_rates["sell"]
     duty_rate = get_cbr_jpy_rate()
     calculation = run_total_calculation(
@@ -1013,7 +1014,7 @@ async def auction_stats(
     model_name = str(model or "").strip() or resolved_model_name
     if model and not resolved_models:
         atb_rates = fetch_atb_jpy_rate()
-        commercial_rate = atb_rates["sell"]
+        commercial_rate = atb_rates["buy"]
         duty_rate = get_cbr_jpy_rate()
         empty_pagination = _build_pagination_info(
             0,
@@ -1045,7 +1046,7 @@ async def auction_stats(
 
     # ── Fetch raw lots ────────────────────────────────────────────────────────
     atb_rates = fetch_atb_jpy_rate()
-    commercial_rate = atb_rates["sell"]
+    commercial_rate = atb_rates["buy"]
     duty_rate = get_cbr_jpy_rate()
 
     cars = await _fetch_aleado_data_for_models(
