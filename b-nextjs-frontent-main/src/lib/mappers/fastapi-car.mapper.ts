@@ -59,10 +59,12 @@ export const buildFastApiCarImages = (
   car: FastApiSearchCar,
   fallbackAlt: string,
 ): CarCarouselOnHoverCardImagePropsTypes[] => {
-  return getFastApiCarImageUrls(car).map((src, index) => ({
-    src,
-    alt: index === 0 ? fallbackAlt : `${fallbackAlt} ${index + 1}`,
-  }))
+  return getFastApiCarImageUrls(car)
+    .slice(0, 1)
+    .map((src, index) => ({
+      src,
+      alt: index === 0 ? fallbackAlt : `${fallbackAlt} ${index + 1}`,
+    }))
 }
 
 const buildPrefetchedCalculation = (
@@ -143,9 +145,7 @@ export const mapFastApiCarToVisibleCard = (
   }
 }
 
-export const mapFastApiCarToDescription = (
-  car: FastApiSearchCar,
-): CarDescriptionPropsTypes => {
+export const mapFastApiCarToDescription = (car: FastApiSearchCar): CarDescriptionPropsTypes => {
   const year = Number(car.year || new Date().getFullYear())
   const enginePower = Number(car.engine_cc || 0)
   const horsepower = Number(car.horsepower || 0)
@@ -172,9 +172,7 @@ export const mapFastApiCarToDescription = (
   }
 }
 
-export const mapFastApiCarToGalleryItems = (
-  car: FastApiSearchCar,
-): ImageGalleryViewerItems[] => {
+export const mapFastApiCarToGalleryItems = (car: FastApiSearchCar): ImageGalleryViewerItems[] => {
   return getFastApiCarImageUrls(car).map((src, index) => {
     const id = `${car.lot || 'lot'}-${index}`
     const altBase = [toModelDisplay(car.brand || 'Japan'), car.modelDisplay || car.model || '', car.year || '']

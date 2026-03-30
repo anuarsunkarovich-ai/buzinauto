@@ -25,6 +25,7 @@ export const searchCatalogCars = async (
     brand: params.brand || '9',
     model: params.model,
     body: params.body,
+    limit: 100,
     minYear: params.minYear,
     maxYear: params.maxYear,
     minEnginePower: params.minEnginePower,

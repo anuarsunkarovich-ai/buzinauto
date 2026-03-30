@@ -368,6 +368,7 @@ def _is_catalog_active_lot(car: dict) -> bool:
 async def search_and_calculate(
     brand: str = "9",
     model: str = "",
+    lot: str | None = None,
     auction_date: str | None = None,
     body: str | None = None,
     min_grade: str | None = None,
@@ -382,6 +383,9 @@ async def search_and_calculate(
     max_price_rub: float | None = None,
     usage_type: str = "private",
     include_completed: bool = Query(False, description="Include completed/archive lots"),
+    enrich_details: bool = Query(
+        False, description="Fetch lot detail page data such as gallery and auction sheet"
+    ),
     limit: int | None = Query(None, description="Max number of cars to return"),
 ):
     atb_rates = fetch_atb_jpy_rate()
@@ -448,6 +452,14 @@ async def search_and_calculate(
                 str(car.get("modification") or ""),
             )
         ]
+    if lot:
+        normalized_lot = re.sub(r"[^\d]+", "", str(lot or ""))
+        if normalized_lot:
+            cars = [
+                car
+                for car in cars
+                if re.sub(r"[^\d]+", "", str(car.get("lot") or "")) == normalized_lot
+            ]
     if min_year is not None:
         cars = [car for car in cars if _safe_number(car.get("year")) >= min_year]
     if max_year is not None:
@@ -502,11 +514,11 @@ async def search_and_calculate(
                 age_cat = get_age_category_from_years(age)
                 lot_price_jpy = int(_safe_number(car.get("price_jpy") or 0))
                 engine_cc = int(_safe_number(car.get("engine_cc") or 1500))
-
-                # Enrich from lot detail page
-                details = await asyncio.to_thread(
-                    fetch_aleado_lot_details, str(car.get("detail_link") or "")
-                )
+                details: dict = {}
+                if enrich_details:
+                    details = await asyncio.to_thread(
+                        fetch_aleado_lot_details, str(car.get("detail_link") or "")
+                    )
                 detail_hp = (
                     int(_safe_number(details.get("horsepower")))
                     if details.get("horsepower")
@@ -519,15 +531,17 @@ async def search_and_calculate(
                 )
                 calculation_price_jpy = average_price_jpy or lot_price_jpy
 
-                # Prefer detail images if available
+                preview_image = str(car.get("image_url") or "").strip()
                 image_urls = details.get("image_urls") or car.get("image_urls") or []
+                if not image_urls and preview_image:
+                    image_urls = [preview_image]
                 car["image_urls"] = image_urls
                 car["image_url"] = details.get("image_url") or (
-                    image_urls[0] if image_urls else car.get("image_url", "")
+                    image_urls[0] if image_urls else preview_image
                 )
-                car["auction_sheet_url"] = details.get("auction_sheet_url") or car.get(
-                    "auction_sheet_url", ""
-                )
+                car["auction_sheet_url"] = (
+                    details.get("auction_sheet_url") if enrich_details else ""
+                ) or car.get("auction_sheet_url", "")
 
                 calculation = run_total_calculation(
                     CalculationContext(
@@ -541,7 +555,7 @@ async def search_and_calculate(
                         usage_type=usage_type,
                         user_type="individual",
                         engine_type=str(car.get("engine_type") or "gasoline"),
-                        year=current_year,
+                        year=car_year,
                     )
                 )
 

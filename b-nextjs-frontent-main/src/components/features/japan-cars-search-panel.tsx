@@ -91,6 +91,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
       setHasSubmittedSearch(true)
       setLoading(true)
       setExchangeRate(null)
+
       try {
         const response = await searchCars({
           brand: String(values.make || defaultValues?.make || '9'),
@@ -110,9 +111,11 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
             typeof values.maxEnginePower === 'number' ? values.maxEnginePower : undefined,
           minPrice: typeof values.minPrice === 'number' ? values.minPrice : undefined,
           maxPrice: typeof values.maxPrice === 'number' ? values.maxPrice : undefined,
+          limit: 100,
         })
 
         setCars(response.results.map((car, index) => mapFastApiCarToVisibleCard(car, index)))
+
         if (response.exchange_rate) {
           setExchangeRate({
             rate: response.exchange_rate,
@@ -152,11 +155,11 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
             as="small"
             className="rounded-lg border border-border/50 bg-secondary/10 px-3 py-1.5 text-muted-foreground"
           >
-            ÐšÑƒÑ€Ñ: <span className="font-bold text-foreground">{exchangeRate.rate} â‚½/Â¥</span> (
+            Курс: <span className="font-bold text-foreground">{exchangeRate.rate} ₽/¥</span> (
             {exchangeRate.source})
             {exchangeRate.date && (
               <span className="ml-2">
-                ÐÐºÑ‚ÑƒÐ°Ð»ÑŒÐ½Ñ‹Ð¹ ÐºÑƒÑ€Ñ Ð¸ÐµÐ½Ñ‹ Ð±Ð°Ð½ÐºÐ° ÐÐ¢Ð‘ Ð½Ð° {exchangeRate.date}: {exchangeRate.rate}
+                Актуальный курс иены банка АТБ на {exchangeRate.date}: {exchangeRate.rate}
               </span>
             )}
           </Text>
@@ -164,14 +167,14 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
 
         {loading && (
           <Text as="small" className="animate-pulse text-muted-foreground">
-            Ð—Ð°Ð³Ñ€ÑƒÐ·ÐºÐ° ÑÐ²ÐµÐ¶Ð¸Ñ… Ð»Ð¾Ñ‚Ð¾Ð²...
+            Загрузка свежих лотов...
           </Text>
         )}
       </div>
 
       {!loading && hasSubmittedSearch && cars.length === 0 && (
         <Text as="small" className="text-muted-foreground">
-          No lots match the current filters. Try broadening the filters or choosing another model.
+          По текущим фильтрам лоты не найдены. Попробуйте расширить поиск или выбрать другую модель.
         </Text>
       )}
       <CarCarouselOnHover items={cars} />

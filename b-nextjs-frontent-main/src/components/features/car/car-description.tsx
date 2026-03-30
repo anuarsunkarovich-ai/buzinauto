@@ -120,7 +120,7 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
 
   const renderTriggerPrice = React.useCallback((): React.ReactNode => {
     return (
-      <Button variant={'outline'} className="w-full max-w-full cursor-pointer !border-primary">
+      <Button variant="outline" className="w-full max-w-full cursor-pointer !border-primary">
         Расшифровка цены
       </Button>
     )

@@ -4,7 +4,11 @@ import { toValidSlug } from '@/lib/transform'
 const normalizeLot = (value: string | number | undefined | null) =>
   String(value || '').replace(/[^\d]+/g, '')
 
-export const getLiveAuctionLotByRoute = async (brandSlug: string, modelSlug: string, lotSlug: string) => {
+export const getLiveAuctionLotByRoute = async (
+  brandSlug: string,
+  modelSlug: string,
+  lotSlug: string,
+) => {
   const normalizedLot = normalizeLot(lotSlug)
   if (!normalizedLot) {
     return {
@@ -13,13 +17,27 @@ export const getLiveAuctionLotByRoute = async (brandSlug: string, modelSlug: str
     }
   }
 
-  const response = await searchCars({
-    brand: toValidSlug(brandSlug),
-    model: modelSlug,
-  })
+  const brand = toValidSlug(brandSlug)
 
-  const current = response.results.find((car) => normalizeLot(car.lot) === normalizedLot)
-  const related = response.results.filter((car) => normalizeLot(car.lot) !== normalizedLot)
+  const [currentResponse, relatedResponse] = await Promise.all([
+    searchCars({
+      brand,
+      model: modelSlug,
+      lot: normalizedLot,
+      enrichDetails: true,
+      limit: 1,
+    }),
+    searchCars({
+      brand,
+      model: modelSlug,
+      limit: 12,
+    }),
+  ])
+
+  const current = currentResponse.results[0]
+  const related = relatedResponse.results
+    .filter((car) => normalizeLot(car.lot) !== normalizedLot)
+    .slice(0, 10)
 
   return {
     current,

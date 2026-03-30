@@ -146,7 +146,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
         {renderTrigger ? (
           renderTrigger()
         ) : (
-          <Button variant={'outline'} className="max-w-fit cursor-pointer !border-primary">
+          <Button variant="outline" className="max-w-fit cursor-pointer !border-primary">
             Расшифровка цены
           </Button>
         )}
@@ -194,15 +194,15 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
         </Card>
         <Table
           container={{
-            className: 'overflow-auto max-h-fit scrollbar-primary',
+            className: 'scrollbar-primary max-h-fit overflow-auto',
             style: {
-              height: 'calc(100vh - 22rem)',
+              maxHeight: 'calc(100vh - 22rem)',
             },
           }}
         >
           <TableCaption>
-            Окончательные суммы могут отличаться в зависимости от курса валют и дополнительных
-            условий. Для точного расчета оставьте заявку на сайте. Консультация бесплатная.
+            Окончательные суммы могут отличаться в зависимости от курса валют и дополнительных условий.
+            Для точного расчета оставьте заявку на сайте. Консультация бесплатная.
           </TableCaption>
           <TableHeader>
             <TableRow>
@@ -226,17 +226,18 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {currencyPriceList.map((row, i) => {
+            {currencyPriceList.map((row, index) => {
               const moneyRub =
                 prefetchedCalculation && (prefetchedCalculation.totalRub || prefetchedCalculation.breakdown)
                   ? prefetchedCalculator(row.callToMoney)
                   : calculator(row)
-              if (!moneyRub) return
+              if (!moneyRub) return null
+
               const isAuctionPriceRow = row.callToMoney === 'AUCTION_PRICE'
               const isJapanExpensesRow = row.callToMoney === 'AUCTION_DELIVERY'
 
               return (
-                <TableRow key={i}>
+                <TableRow key={index}>
                   <TableCell
                     className={`
                       w-max font-medium whitespace-normal
@@ -260,15 +261,16 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
                           </Text>
                           {effectiveCommercialRate && (
                             <Text as="small" className="text-center text-muted-foreground">
-                              Актуальный коммерческий курс йены банка АТБ
-                              {effectiveRateDate ? ` на ${effectiveRateDate}` : ''} составляет: {effectiveCommercialRate}
+                              Актуальный коммерческий курс иены банка АТБ
+                              {effectiveRateDate ? ` на ${effectiveRateDate}` : ''} составляет:{' '}
+                              {effectiveCommercialRate}
                             </Text>
                           )}
                         </>
                       )}
                       {isJapanExpensesRow && (effectiveBuyAndDeliveryJpy || 0) > 0 && (
                         <Text as="small" className="text-muted-foreground">
-                          {Number(effectiveBuyAndDeliveryJpy).toLocaleString('ru-RU')} Â¥
+                          {Number(effectiveBuyAndDeliveryJpy).toLocaleString('ru-RU')} ¥
                         </Text>
                       )}
                     </div>

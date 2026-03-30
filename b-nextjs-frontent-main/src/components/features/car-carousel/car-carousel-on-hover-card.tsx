@@ -130,6 +130,7 @@ export const CarCarouselOnHoverCard: React.FC<
                     className="object-cover"
                     sizes="(max-width: 768px) 100vw, 33vw"
                     loading={index === 0 ? 'eager' : 'lazy'}
+                    unoptimized
                     fill
                   />
                 </div>

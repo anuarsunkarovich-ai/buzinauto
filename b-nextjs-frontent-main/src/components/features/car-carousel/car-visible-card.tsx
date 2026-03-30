@@ -136,15 +136,12 @@ export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
               Дата торгов: {formattedAuctionDate}
             </Text>
           )}
-          <Text
-            as="small"
-            className="cursor-pointer text-muted-foreground"
-            onClick={navigateToCard}
-          >
+          <Text as="small" className="cursor-pointer text-muted-foreground" onClick={navigateToCard}>
             {description}
           </Text>
-          <Text as="small" className="cursor-pointer text-muted-foreground mt-1" onClick={navigateToCard}>
-            {enginePower ? `${(enginePower / 1000).toFixed(1)} л.` : '—'} · {horsepower ? `${horsepower} л.с.` : '—'}
+          <Text as="small" className="mt-1 cursor-pointer text-muted-foreground" onClick={navigateToCard}>
+            {enginePower ? `${(enginePower / 1000).toFixed(1)} л.` : '—'} ·{' '}
+            {horsepower ? `${horsepower} л.с.` : '—'}
           </Text>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -155,10 +152,10 @@ export const CarVisibleCard: React.FC<CarVisibleCardPropsTypes> = ({
           >
             Под заказ
           </Text>
-          {tags.map((tag, i) => {
+          {tags.map((tag, index) => {
             return (
               <Text
-                key={`${i}`}
+                key={`${index}`}
                 as="span"
                 className={`
                   inline-block cursor-pointer rounded bg-secondary-foreground px-2 py-1 text-xs

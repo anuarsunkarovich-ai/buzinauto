@@ -3,7 +3,9 @@ import { getRuntimeBackendApiUrl } from '@/lib/api/backend-url'
 export type SearchCarsParams = {
   brand: string
   model?: string
+  lot?: string
   includeCompleted?: boolean
+  enrichDetails?: boolean
   body?: string
   auctionDate?: string
   minGrade?: string
@@ -169,7 +171,9 @@ const buildSearchUrl = (
   {
     brand,
     model,
+    lot,
     includeCompleted,
+    enrichDetails,
     body,
     auctionDate,
     minGrade,
@@ -191,8 +195,14 @@ const buildSearchUrl = (
   if (model) {
     url.searchParams.set('model', model)
   }
+  if (lot) {
+    url.searchParams.set('lot', lot)
+  }
   if (includeCompleted) {
     url.searchParams.set('include_completed', '1')
+  }
+  if (enrichDetails) {
+    url.searchParams.set('enrich_details', '1')
   }
   if (body) {
     url.searchParams.set('body', body)
@@ -243,7 +253,9 @@ const buildSearchUrl = (
 export const searchCars = async ({
   brand,
   model,
+  lot,
   includeCompleted,
+  enrichDetails,
   body,
   auctionDate,
   minGrade,
@@ -269,7 +281,9 @@ export const searchCars = async ({
     buildSearchUrl(baseUrl, {
       brand,
       model,
+      lot,
       includeCompleted,
+      enrichDetails,
       body,
       auctionDate,
       minGrade,
