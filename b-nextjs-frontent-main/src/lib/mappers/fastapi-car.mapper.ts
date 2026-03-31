@@ -72,6 +72,11 @@ export const buildPrefetchedCalculation = (
   car.price_details || initialTotalRub > 0
     ? {
         totalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
+        carPriceRub: car.price_details?.car_price_rub,
+        carPriceJpy: car.price_details?.car_price_jpy,
+        lotPriceJpy: car.price_details?.lot_price_jpy,
+        averagePriceJpy: car.price_details?.average_price_jpy,
+        priceSource: car.price_source,
         commercialRate:
           car.price_details?.bank_buy_rate ??
           car.price_details?.exchange_rate ??

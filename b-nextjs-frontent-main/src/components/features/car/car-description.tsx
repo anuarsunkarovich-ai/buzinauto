@@ -66,6 +66,10 @@ export const CarDescription: React.FC<CarDescriptionPropsTypes> = ({
       return undefined
     }
 
+    if ((prefetchedCalculation.carPriceRub || 0) > 0) {
+      return Math.round(prefetchedCalculation.carPriceRub || 0)
+    }
+
     return Math.max(
       0,
       Math.round(
