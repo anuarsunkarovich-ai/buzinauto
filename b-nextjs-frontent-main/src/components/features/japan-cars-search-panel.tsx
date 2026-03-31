@@ -142,7 +142,7 @@ export const JapanCarsSearchPanel: React.FC<JapanCarsSearchPanelProps> = ({
         const response = await searchCars({
           brand: String(values.make || defaultValues?.make || '9'),
           model: values.model ? String(values.model) : undefined,
-          enrichDetails: false,
+          enrichDetails: true,
           body: values.body ? String(values.body) : undefined,
           auctionDate: values.auctionDate ? String(values.auctionDate) : undefined,
           rating: values.rating ? String(values.rating) : undefined,
