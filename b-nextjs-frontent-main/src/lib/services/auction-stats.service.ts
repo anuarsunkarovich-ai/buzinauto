@@ -38,6 +38,10 @@ export type AuctionStatsResponse = {
     body: string
     sale_status?: string
     total_rub?: number
+    average_price_jpy?: number
+    calculation_price_jpy?: number
+    price_source?: string
+    price_details?: FastApiSearchCar['price_details']
   }[]
   recent_lots_pagination: SearchPagination
   exchange_rate: number

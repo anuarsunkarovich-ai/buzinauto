@@ -65,7 +65,7 @@ export const buildFastApiCarImages = (
   }))
 }
 
-const buildPrefetchedCalculation = (
+export const buildPrefetchedCalculation = (
   car: FastApiSearchCar,
   initialTotalRub: number,
 ): PrefetchedCalculation | undefined =>
