@@ -278,6 +278,37 @@ export const isSuspiciousBackendModelOptions = (items: CatalogModelOption[]) =>
     return ALEADO_FALLBACK_MODELS.has(modelToken)
   })
 
+const collapseFamilyModelOptions = (items: CatalogModelOption[]) => {
+  const normalizedItems = items.map((item, index) => ({
+    item,
+    index,
+    familyName: normalizeText(item.modelDisplay).replace(/\s+/g, ' ').toUpperCase(),
+  }))
+
+  const kept = normalizedItems.filter((entry) => {
+    if (!entry.familyName) {
+      return true
+    }
+
+    return !normalizedItems.some((candidate) => {
+      if (candidate.index === entry.index) {
+        return false
+      }
+
+      if (candidate.item.brand !== entry.item.brand || !candidate.familyName) {
+        return false
+      }
+
+      return (
+        candidate.familyName.length < entry.familyName.length &&
+        entry.familyName.startsWith(`${candidate.familyName} `)
+      )
+    })
+  })
+
+  return kept.map((entry) => entry.item)
+}
+
 export const normalizeBrandResponse = (payload: unknown): CatalogBrandOption[] => {
   if (!payload || typeof payload !== 'object') {
     return []
@@ -325,7 +356,7 @@ export const normalizeModelResponse = (
     (item) => `${toUrlSlug(item.brand)}::${toUrlSlug(item.modelSlug)}`,
   )
 
-  return dedupedModels
+  return collapseFamilyModelOptions(dedupedModels)
 }
 
 export const normalizeBodyResponse = (payload: unknown): CatalogBodyOption[] => {

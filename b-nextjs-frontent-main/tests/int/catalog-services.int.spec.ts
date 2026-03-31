@@ -42,7 +42,7 @@ describe('catalog filter helpers', () => {
     ])
   })
 
-  it('keeps distinct model families instead of collapsing them', () => {
+  it('collapses model variants under the base family when the base model exists', () => {
     expect(
       normalizeModelResponse(
         {
@@ -59,12 +59,6 @@ describe('catalog filter helpers', () => {
         model: '100',
         modelDisplay: 'Civic',
         modelSlug: 'civic',
-      },
-      {
-        brand: 'HONDA',
-        model: '101',
-        modelDisplay: 'Civic Type R',
-        modelSlug: 'civic-type-r',
       },
     ])
   })
