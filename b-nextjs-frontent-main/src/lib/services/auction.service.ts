@@ -142,7 +142,8 @@ export const searchCars = async ({
       page: typeof page === 'number' ? page : undefined,
       lot,
       include_completed: includeCompleted ? '1' : undefined,
-      enrich_details: enrichDetails ? '1' : undefined,
+      enrich_details:
+        typeof enrichDetails === 'boolean' ? (enrichDetails ? 'true' : 'false') : undefined,
       body,
       auction_date: auctionDate,
       min_grade: minGrade,

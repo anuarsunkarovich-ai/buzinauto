@@ -74,4 +74,24 @@ describe('auction service', () => {
     expect(result.exchange_rate).toBe(0.498)
     expect(result.rate_date).toBe('31.03.2026')
   })
+
+  it('sends explicit enrich_details=false when catalog search disables detail scraping', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [],
+      }),
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    await searchCars({
+      brand: 'honda',
+      enrichDetails: false,
+      limit: 12,
+    })
+
+    const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0] || ''))
+    expect(requestUrl.searchParams.get('enrich_details')).toBe('false')
+  })
 })

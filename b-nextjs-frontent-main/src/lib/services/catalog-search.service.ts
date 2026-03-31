@@ -24,9 +24,9 @@ export const searchCatalogCars = async (
   const response = await searchCars({
     brand: params.brand || '9',
     model: params.model,
-    enrichDetails: true,
+    enrichDetails: false,
     body: params.body,
-    limit: 100,
+    limit: 12,
     minYear: params.minYear,
     maxYear: params.maxYear,
     minEnginePower: params.minEnginePower,
