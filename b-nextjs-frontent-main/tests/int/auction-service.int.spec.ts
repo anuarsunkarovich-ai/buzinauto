@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/backend-url', () => ({
   getRuntimeBackendApiUrl: () => 'https://example.com/api/v1',
+  getBackendApiCandidates: async () => ['https://example.com/api/v1'],
 }))
 
 import { searchCars } from '@/lib/services/auction.service'
@@ -11,8 +12,8 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('auction body filtering', () => {
-  it('keeps exact multi-token body matches without widening to partial variants', async () => {
+describe('auction service', () => {
+  it('returns backend results without applying a second client-side filter pass', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -34,18 +35,28 @@ describe('auction body filtering', () => {
       limit: 50,
     })
 
-    expect(result.results.map((car) => car.lot)).toEqual(['1'])
+    expect(result.results.map((car) => car.lot)).toEqual(['1', '2', '3'])
   })
 
-  it('still matches body/model code combinations for short code filters', async () => {
+  it('preserves response metadata while returning backend rows as-is', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
+          pagination: {
+            page: 2,
+            limit: 12,
+            total_items: 24,
+            total_pages: 2,
+            has_next_page: false,
+            has_prev_page: true,
+          },
+          exchange_rate: 0.498,
+          rate_source: 'ATB Bank',
+          rate_date: '31.03.2026',
           results: [
-            { lot: '1', body: 'HATCHBACK HONDA SENSING', modification: 'FK7 HATCHBACK HONDA SENSING' },
-            { lot: '2', body: 'TYPE R', modification: 'FL5 TYPE R' },
+            { lot: '1', body: 'TYPE R', modification: 'FL5 TYPE R' },
           ],
         }),
       }),
@@ -59,5 +70,8 @@ describe('auction body filtering', () => {
     })
 
     expect(result.results.map((car) => car.lot)).toEqual(['1'])
+    expect(result.pagination?.page).toBe(2)
+    expect(result.exchange_rate).toBe(0.498)
+    expect(result.rate_date).toBe('31.03.2026')
   })
 })

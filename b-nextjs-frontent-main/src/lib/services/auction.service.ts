@@ -113,71 +113,6 @@ type SearchCarsResponse = {
   duty_rate_source?: string
 }
 
-const normalizeSearchValue = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '')
-
-const tokenizeSearchValue = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .split(/[^a-z0-9]+/g)
-    .filter(Boolean)
-
-const matchesBodyQuery = (car: FastApiSearchCar, bodyQuery: string) => {
-  const normalizedQuery = normalizeSearchValue(bodyQuery)
-
-  if (!normalizedQuery) {
-    return true
-  }
-
-  const queryTokens = tokenizeSearchValue(bodyQuery)
-  const candidates = [car.body, car.model_code, car.modification]
-
-  return candidates.some((candidate) => {
-    const candidateText = String(candidate || '')
-    const normalizedCandidate = normalizeSearchValue(candidateText)
-    if (!normalizedCandidate) {
-      return false
-    }
-
-    if (normalizedCandidate === normalizedQuery) {
-      return true
-    }
-
-    const candidateTokens = tokenizeSearchValue(candidateText)
-    return queryTokens.length > 0 && queryTokens.every((token) => candidateTokens.includes(token))
-  })
-}
-
-const matchesModelQuery = (car: FastApiSearchCar, modelQuery: string) => {
-  const normalizedQuery = normalizeSearchValue(modelQuery)
-
-  if (!normalizedQuery) {
-    return true
-  }
-
-  const candidates = [
-    car.model,
-    car.modelDisplay,
-    car.modelSlug,
-    car.model_code,
-    car.modification,
-    car.body,
-  ]
-
-  return candidates.some((candidate) => {
-    const normalizedCandidate = normalizeSearchValue(String(candidate || ''))
-    return (
-      normalizedCandidate === normalizedQuery ||
-      normalizedCandidate.includes(normalizedQuery) ||
-      normalizedQuery.includes(normalizedCandidate)
-    )
-  })
-}
-
 export const searchCars = async ({
   brand,
   model,
@@ -231,12 +166,9 @@ export const searchCars = async ({
     : Array.isArray(payload.results)
       ? payload.results
       : []
-  const filteredResults = rawResults
-    .filter((car) => (model ? matchesModelQuery(car, model) : true))
-    .filter((car) => (body ? matchesBodyQuery(car, body) : true))
 
   return {
-    results: filteredResults,
+    results: rawResults,
     pagination: responseMeta?.pagination,
     exchange_rate: responseMeta?.exchange_rate,
     rate_source: responseMeta?.rate_source,
