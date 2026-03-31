@@ -748,12 +748,18 @@ async def search_and_calculate(
                 age = current_year - car_year
                 age_cat = get_age_category_from_years(age)
                 lot_price_jpy = int(_safe_number(car.get("price_jpy") or 0))
-                engine_cc = int(_safe_number(car.get("engine_cc") or 1500))
+                row_engine_cc = int(_safe_number(car.get("engine_cc") or 1500))
                 details: dict = {}
                 if enrich_details:
                     details = await asyncio.to_thread(
                         fetch_aleado_lot_details, str(car.get("detail_link") or "")
                     )
+                detail_engine_cc = (
+                    int(_safe_number(details.get("engine_cc")))
+                    if details.get("engine_cc")
+                    else 0
+                )
+                engine_cc = detail_engine_cc or row_engine_cc
                 detail_hp = (
                     int(_safe_number(details.get("horsepower")))
                     if details.get("horsepower")
@@ -798,6 +804,7 @@ async def search_and_calculate(
                 )
                 car["calculation_price_jpy"] = str(calculation_price_jpy)
                 car["price_source"] = "average" if average_price_jpy > 0 else "lot"
+                car["engine_cc"] = str(engine_cc)
                 car["horsepower"] = horsepower
 
                 car["price_details"] = {
@@ -1243,43 +1250,67 @@ async def auction_stats(
         max_limit=50,
     )
 
-    recent_lots = [
-        RecentLot(
-            lot=str(c.get("lot") or ""),
-            brand=str(c.get("brand") or brand_name),
-            model=str(c.get("model") or model_name),
-            year=str(c.get("year") or ""),
-            engine_cc=str(c.get("engine_cc") or ""),
-            horsepower=_resolve_car_horsepower(c),
-            mileage=str(c.get("mileage") or ""),
-            grade=str(c.get("grade") or c.get("rating") or ""),
-            price_jpy=calculation_price_by_lot.get(
-                _build_lot_identity(c),
-                _to_int_price(c.get("price_jpy", 0)),
-            ),
-            price_rub=round(
-                total_rub_by_lot.get(
-                    _build_lot_identity(c),
-                    _to_int_price(c.get("price_jpy", 0)) * commercial_rate,
-                ),
-                2,
-            ),
-            total_rub=round(
-                total_rub_by_lot.get(
-                    _build_lot_identity(c),
-                    _to_int_price(c.get("price_jpy", 0)) * commercial_rate,
-                ),
-                2,
-            ),
-            image_url=str(c.get("image_url") or ""),
-            auction_date=str(c.get("auction_date") or ""),
-            color=str(c.get("color") or ""),
-            transmission=str(c.get("transmission") or ""),
-            body=str(c.get("body") or ""),
-            sale_status=str(c.get("sale_status") or ""),
+    async def _fetch_recent_lot_detail_snapshot(car: dict) -> tuple[dict, dict]:
+        detail_link = str(car.get("detail_link") or "").strip()
+        if not detail_link:
+            return car, {}
+
+        try:
+            details = await asyncio.to_thread(fetch_aleado_lot_details, detail_link)
+            return car, details or {}
+        except Exception as exc:
+            print(f"DEBUG: Failed to enrich recent stats lot {car.get('lot')}: {exc}")
+            return car, {}
+
+    recent_car_details = await asyncio.gather(
+        *(_fetch_recent_lot_detail_snapshot(car) for car in paged_recent_cars)
+    )
+
+    recent_lots = []
+    for c, details in recent_car_details:
+        detail_engine_cc = int(_safe_number(details.get("engine_cc") or 0))
+        detail_hp = int(_safe_number(details.get("horsepower") or 0))
+        resolved_engine_cc = detail_engine_cc or int(_safe_number(c.get("engine_cc") or 0))
+        resolved_horsepower = _resolve_car_horsepower(
+            {**c, "engine_cc": str(resolved_engine_cc)}, detail_hp
         )
-        for c in paged_recent_cars
-    ]
+
+        recent_lots.append(
+            RecentLot(
+                lot=str(c.get("lot") or ""),
+                brand=str(c.get("brand") or brand_name),
+                model=str(c.get("model") or model_name),
+                year=str(c.get("year") or ""),
+                engine_cc=str(resolved_engine_cc or c.get("engine_cc") or ""),
+                horsepower=resolved_horsepower,
+                mileage=str(c.get("mileage") or ""),
+                grade=str(c.get("grade") or c.get("rating") or ""),
+                price_jpy=calculation_price_by_lot.get(
+                    _build_lot_identity(c),
+                    _to_int_price(c.get("price_jpy", 0)),
+                ),
+                price_rub=round(
+                    total_rub_by_lot.get(
+                        _build_lot_identity(c),
+                        _to_int_price(c.get("price_jpy", 0)) * commercial_rate,
+                    ),
+                    2,
+                ),
+                total_rub=round(
+                    total_rub_by_lot.get(
+                        _build_lot_identity(c),
+                        _to_int_price(c.get("price_jpy", 0)) * commercial_rate,
+                    ),
+                    2,
+                ),
+                image_url=str(c.get("image_url") or ""),
+                auction_date=str(c.get("auction_date") or ""),
+                color=str(c.get("color") or ""),
+                transmission=str(c.get("transmission") or ""),
+                body=str(c.get("body") or ""),
+                sale_status=str(c.get("sale_status") or ""),
+            )
+        )
 
     avg_total_rub = (
         round(sum(total_rub_list) / len(total_rub_list), 2) if total_rub_list else 0.0
