@@ -7,7 +7,7 @@ import asyncio
 from datetime import date, datetime, timedelta
 import re
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -290,12 +290,21 @@ async def _fetch_aleado_data_for_models(
 
     batches = await asyncio.gather(*tasks, return_exceptions=True)
     merged: list[dict] = []
+    errors: list[str] = []
 
     for model_id, batch in zip(effective_model_ids, batches):
         if isinstance(batch, Exception):
-            print(f"DEBUG: Failed to fetch Aleado batch for {brand_id}/{model_id}: {batch}")
+            error_message = f"{brand_id}/{model_id or 'ALL'}: {batch}"
+            print(f"DEBUG: Failed to fetch Aleado batch for {error_message}")
+            errors.append(error_message)
             continue
         merged.extend(batch or [])
+
+    if errors and not merged:
+        raise RuntimeError(
+            "Aleado upstream fetch failed for all requested model batches: "
+            + "; ".join(errors[:5])
+        )
 
     return _sort_catalog_cars(_dedupe_cars(merged))
 
@@ -625,20 +634,23 @@ async def search_and_calculate(
             limit=limit,
         )
     brand_name, model_name = resolve_aleado_names(resolved_brand, resolved_model)
-    if include_completed:
-        cars = await _fetch_aleado_data_for_models(
-            resolved_brand,
-            resolved_models,
-            search_type="stats",
-            result_filter="2",
-        )
-    else:
-        cars = await _fetch_aleado_data_for_models(
-            resolved_brand,
-            resolved_models,
-            search_type="max",
-            body=str(body or ""),
-        )
+    try:
+        if include_completed:
+            cars = await _fetch_aleado_data_for_models(
+                resolved_brand,
+                resolved_models,
+                search_type="stats",
+                result_filter="2",
+            )
+        else:
+            cars = await _fetch_aleado_data_for_models(
+                resolved_brand,
+                resolved_models,
+                search_type="max",
+                body=str(body or ""),
+            )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     # ── Apply Filters ────────────────────────────────────────────────────────
     if not include_completed:
@@ -1049,23 +1061,29 @@ async def auction_stats(
     commercial_rate = atb_rates["buy"]
     duty_rate = get_cbr_jpy_rate()
 
-    cars = await _fetch_aleado_data_for_models(
-        resolved_brand,
-        resolved_models,
-        search_type="stats",
-        body=str(body or ""),
-    )
+    try:
+        cars = await _fetch_aleado_data_for_models(
+            resolved_brand,
+            resolved_models,
+            search_type="stats",
+            body=str(body or ""),
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     if not cars:
         print(
             f"DEBUG: Stats search returned 0 rows for {resolved_brand}/{resolved_models or ['ALL']}. "
             "Retrying with live search fallback."
         )
-        cars = await _fetch_aleado_data_for_models(
-            resolved_brand,
-            resolved_models,
-            search_type="max",
-            body="",
-        )
+        try:
+            cars = await _fetch_aleado_data_for_models(
+                resolved_brand,
+                resolved_models,
+                search_type="max",
+                body="",
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
     cars = [c for c in cars if _is_completed_auction_date(c.get("auction_date"))]
 
     # ── Apply Filtering ───────────────────────────────────────────────────────
