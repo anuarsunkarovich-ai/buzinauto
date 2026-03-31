@@ -23,6 +23,8 @@ export type CatalogBodyOption = {
 type UnknownRecord = Record<string, unknown>
 
 const LOCAL_PAGE_LIMIT = 5000
+const ALEADO_FALLBACK_BRANDS = new Set(['toyota', 'honda', 'nissan', 'mazda', 'subaru'])
+const ALEADO_FALLBACK_MODELS = new Set(['n-box', 'fit', 'stepwgn'])
 
 const normalizeText = (value: unknown) => String(value || '').trim()
 const normalizeIdentifier = (value: unknown) =>
@@ -260,36 +262,21 @@ const dedupeBy = <T>(items: T[], getKey: (item: T) => string) => {
   })
 }
 
-const collapseFamilyModelOptions = (items: CatalogModelOption[]) => {
-  const normalizedItems = items.map((item, index) => ({
-    item,
-    index,
-    familyName: normalizeText(item.modelDisplay).replace(/\s+/g, ' ').toUpperCase(),
-  }))
-
-  const kept = normalizedItems.filter((entry) => {
-    if (!entry.familyName) {
-      return true
-    }
-
-    return !normalizedItems.some((candidate) => {
-      if (candidate.index === entry.index) {
-        return false
-      }
-
-      if (candidate.item.brand !== entry.item.brand || !candidate.familyName) {
-        return false
-      }
-
-      return (
-        candidate.familyName.length < entry.familyName.length &&
-        entry.familyName.startsWith(`${candidate.familyName} `)
-      )
-    })
+export const isSuspiciousBackendBrandOptions = (items: CatalogBrandOption[]) =>
+  items.length > 0 &&
+  items.length <= ALEADO_FALLBACK_BRANDS.size &&
+  items.every((item) => {
+    const brandToken = toUrlSlug(item.brandName || item.brand)
+    return ALEADO_FALLBACK_BRANDS.has(brandToken)
   })
 
-  return kept.map((entry) => entry.item)
-}
+export const isSuspiciousBackendModelOptions = (items: CatalogModelOption[]) =>
+  items.length > 0 &&
+  items.length <= ALEADO_FALLBACK_MODELS.size &&
+  items.every((item) => {
+    const modelToken = toUrlSlug(item.modelSlug || item.modelDisplay || item.model)
+    return ALEADO_FALLBACK_MODELS.has(modelToken)
+  })
 
 export const normalizeBrandResponse = (payload: unknown): CatalogBrandOption[] => {
   if (!payload || typeof payload !== 'object') {
@@ -338,7 +325,7 @@ export const normalizeModelResponse = (
     (item) => `${toUrlSlug(item.brand)}::${toUrlSlug(item.modelSlug)}`,
   )
 
-  return collapseFamilyModelOptions(dedupedModels)
+  return dedupedModels
 }
 
 export const normalizeBodyResponse = (payload: unknown): CatalogBodyOption[] => {
@@ -364,12 +351,15 @@ export const normalizeBodyResponse = (payload: unknown): CatalogBodyOption[] => 
 }
 
 export const fetchCatalogBrands = async (country?: string) => {
+  let backendBrands: CatalogBrandOption[] = []
+
   try {
     const payload = await fetchBackendJson<UnknownRecord>('auction/filters')
     const brands = normalizeBrandResponse(payload)
-    if (brands.length > 0) {
+    if (brands.length > 0 && !isSuspiciousBackendBrandOptions(brands)) {
       return brands
     }
+    backendBrands = brands
   } catch (error) {
     console.error('fetchCatalogBrands backend error:', error)
   }
@@ -393,13 +383,15 @@ export const fetchCatalogBrands = async (country?: string) => {
     console.error('fetchCatalogBrands local fallback error:', error)
   }
 
-  return []
+  return backendBrands
 }
 
 export const fetchCatalogModels = async (brand: string, country?: string) => {
   if (!brand) {
     return []
   }
+
+  let backendModels: CatalogModelOption[] = []
 
   try {
     const payload = await fetchBackendJson<UnknownRecord>('auction/filters', {
@@ -408,9 +400,10 @@ export const fetchCatalogModels = async (brand: string, country?: string) => {
       },
     })
     const models = normalizeModelResponse(payload, brand)
-    if (models.length > 0) {
+    if (models.length > 0 && !isSuspiciousBackendModelOptions(models)) {
       return models
     }
+    backendModels = models
   } catch (error) {
     console.error('fetchCatalogModels backend error:', error)
   }
@@ -436,7 +429,7 @@ export const fetchCatalogModels = async (brand: string, country?: string) => {
     console.error('fetchCatalogModels local fallback error:', error)
   }
 
-  return []
+  return backendModels
 }
 
 export const fetchCatalogBodies = async (

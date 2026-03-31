@@ -34,7 +34,7 @@ ALEADO_LOGIN_URL = f"{ALEADO_BASE_URL}/auth/login.php"
 ATB_URL = "https://www.atb.su/services/exchange/"
 CBR_DAILY_URL = "https://www.cbr-xml-daily.ru/daily_json.js"
 
-ALEADO_USERNAME = os.getenv("ALEADO_USERNAME", "106943767")
+ALEADO_USERNAME = os.getenv("ALEADO_USERNAME", "106948065")
 ALEADO_PASSWORD = os.getenv("ALEADO_PASSWORD", "Anuar1234")
 
 ALEADO_SESSION_TTL_SECONDS = 30 * 60
@@ -257,13 +257,7 @@ def _fetch_aleado_page(
             if method.upper() == "POST":
                 response = client.post(_absolute_aleado_url(path), params=params, data=data)
             else:
-                if search_type == "stats":
-                    response = client.post(
-                        _absolute_aleado_url(path),
-                        data=_build_stats_search_payload(brand_id, model_id),
-                    )
-                else:
-                    response = client.get(_absolute_aleado_url(path), params=params)
+                response = client.get(_absolute_aleado_url(path), params=params)
 
         response.raise_for_status()
         if _is_guest_page(response.text, str(response.url)):
