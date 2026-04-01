@@ -2,7 +2,7 @@
 
 import time
 from collections import Counter
-
+import httpx
 import asyncio
 from datetime import date, datetime, timedelta
 import re
@@ -21,6 +21,7 @@ from schemas import CalculationRequest, CalculationResponse, CostBreakdown
 from scraper import (
     fetch_aleado_average_price,
     fetch_aleado_data,
+    refresh_atb_rates,
     fetch_aleado_filters,
     fetch_aleado_lot_details,
     fetch_atb_jpy_rate,
@@ -33,11 +34,13 @@ app = FastAPI(title="Buzinavto Calc API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+_ATB_CACHE = {"buy": 0.0, "sell": 0.0, "timestamp": 0.0}
+_ALEADO_SESSION_CACHE = {"cookies": {}, "timestamp": 0.0}
 
 
 @app.get("/")
@@ -603,7 +606,7 @@ async def search_and_calculate(
     ),
     limit: int | None = Query(None, description="Max number of cars to return per page"),
 ):
-    atb_rates = fetch_atb_jpy_rate()
+    atb_rates = await refresh_atb_rates()
     commercial_rate = atb_rates["buy"]
     sell_rate = atb_rates["sell"]
     duty_rate = get_cbr_jpy_rate()

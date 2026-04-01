@@ -5,11 +5,11 @@ import html
 import os
 import re
 import time
+import httpx
 from typing import Any
-from urllib.parse import parse_qsl, urljoin, urlparse
+from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl, urljoin
 
 from decimal import Decimal, ROUND_HALF_UP
-import httpx
 from bs4 import BeautifulSoup
 from calculator_core import (
     MONEY_Q,
@@ -21,9 +21,9 @@ from calculator_core import (
 
 _EUR_CACHE = {"rate": 105.0, "timestamp": 0.0}
 _CBR_JPY_CACHE = {"rate": 0.0, "timestamp": 0.0}
-_ATB_CACHE = {"buy": 0.502, "sell": 0.55, "timestamp": 0.0}
+_ATB_CACHE = {"buy": 0.0, "sell": 0.0, "timestamp": 0.0} 
 _CBR_DAILY_CACHE = {"data": None, "timestamp": 0.0}
-_ALEADO_SESSION_CACHE = {"cookies": None, "timestamp": 0.0}
+_ALEADO_SESSION_CACHE = {"cookies": {}, "timestamp": 0.0}
 _FILTER_CACHE: dict[str, dict[str, Any]] = {}
 _AVERAGE_PRICE_CACHE: dict[str, dict[str, Any]] = {}
 _LOT_DETAILS_CACHE: dict[str, dict[str, Any]] = {}
@@ -34,8 +34,8 @@ ALEADO_LOGIN_URL = f"{ALEADO_BASE_URL}/auth/login.php"
 ATB_URL = "https://www.atb.su/services/exchange/"
 CBR_DAILY_URL = "https://www.cbr-xml-daily.ru/daily_json.js"
 
-ALEADO_USERNAME = os.getenv("ALEADO_USERNAME", "106943767")
-ALEADO_PASSWORD = os.getenv("ALEADO_PASSWORD", "Anuar1234")
+ALEADO_USERNAME = os.getenv("ALEADO_USERNAME", "106948524")
+ALEADO_PASSWORD = os.getenv("ALEADO_PASSWORD", "JyFubr3cemFPUoqfma2hQgPLxSWV3UMn")
 
 ALEADO_SESSION_TTL_SECONDS = 30 * 60
 FILTER_CACHE_TTL_SECONDS = 30 * 60
@@ -58,6 +58,57 @@ ALEADO_HEADERS = {
     ),
 }
 
+async def refresh_atb_rates():
+    import httpx
+    global _ATB_CACHE
+    now = time.time()
+    
+    if now - _ATB_CACHE.get("timestamp", 0) < 3600 and _ATB_CACHE.get("buy", 0) > 0.4:
+        return _ATB_CACHE
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True) as client:
+            response = await client.get(ATB_URL)
+            if response.status_code == 200:
+                # Ищем все пары чисел после упоминания JPY
+                matches = re.findall(r'JPY.*?(\d+[.,]\d+).*?(\d+[.,]\d+)', response.text, re.DOTALL)
+                print(f"DEBUG: Найдено в тексте АТБ: {matches}")
+                
+                valid_rate = False
+                for b_str, s_str in matches:
+                    buy = float(b_str.replace(',', '.'))
+                    sell = float(s_str.replace(',', '.'))
+                    
+                    # Проверка: курс иены за 100 ед. обычно от 45 до 85 рублей.
+                    # Если число в этом диапазоне — это наш искомый курс JPY/RUB
+                    if 40 < buy < 95:
+                        final_buy = buy / 100
+                        final_sell = sell / 100
+                        _ATB_CACHE.update({
+                            "buy": final_buy,
+                            "sell": final_sell,
+                            "timestamp": now
+                        })
+                        print(f"DEBUG: [ATB] Успешно найден верный курс JPY: {final_buy}")
+                        valid_rate = True
+                        break
+                
+                if valid_rate:
+                    return _ATB_CACHE
+                else:
+                    print("DEBUG: [ATB] Подходящий курс JPY (40-95) не найден среди совпадений")
+                    
+    except Exception as e:
+        print(f"ERROR: [ATB] Ошибка: {type(e).__name__} - {e}")
+ 
+    print("DEBUG: [ATB] Использую резервный курс (0.645)")
+    _ATB_CACHE.update({"buy": 0.645, "sell": 0.675, "timestamp": now})
+    return _ATB_CACHE
 
 def _normalize(text: str) -> str:
     return re.sub(r"[^0-9a-zа-яё]+", "", (text or "").lower())
@@ -192,87 +243,136 @@ def _extract_form_inputs(form) -> dict[str, str]:
     return payload
 
 
-def _login_aleado(client: httpx.Client) -> None:
-    if not ALEADO_USERNAME or not ALEADO_PASSWORD:
-        raise RuntimeError("Aleado credentials are not configured")
+def _login_aleado(client: httpx.Client) -> bool:
+    """Логинимся через ScraperAPI, чтобы привязать сессию к прокси-IP"""
+    login_url = "/auctions/?p=project/login"
+    
+    # Данные формы (проверь названия полей, обычно они такие)
+    payload = {
+        "username": ALEADO_USERNAME,
+        "password": ALEADO_PASSWORD,
+        "remember": "on",
+        "login_btn": "Вход"
+    }
 
-    login_page = client.get(ALEADO_LOGIN_URL)
-    login_page.raise_for_status()
-
-    soup = BeautifulSoup(login_page.text, "html.parser")
-    form = soup.find("form")
-    payload = _extract_form_inputs(form)
-    payload.update(
-        {
-            "username": ALEADO_USERNAME,
-            "password": ALEADO_PASSWORD,
-        }
-    )
-    payload.setdefault("Submit", "Вход")
-
-    action_url = _absolute_aleado_url(form.get("action") if form else ALEADO_LOGIN_URL)
-    response = client.post(
-        action_url,
-        data=payload,
-        headers={"Referer": str(login_page.url), **ALEADO_HEADERS},
-    )
-    response.raise_for_status()
-
-    probe = client.get(
-        f"{ALEADO_BASE_URL}/auctions/",
-        params={"p": "project/searchform", "searchtype": "max", "s": "", "ld": ""},
-    )
-    probe.raise_for_status()
-
-    if _is_guest_page(probe.text, str(probe.url)) or not _is_authenticated_page(probe.text):
-        raise RuntimeError("Aleado login failed: guest page returned after authentication")
-
-    _cache_aleado_session(client)
-
-
-def _ensure_aleado_session(client: httpx.Client) -> None:
-    cached_cookies = _ALEADO_SESSION_CACHE.get("cookies")
-    if cached_cookies and time.time() - _ALEADO_SESSION_CACHE["timestamp"] < ALEADO_SESSION_TTL_SECONDS:
-        client.cookies.update(cached_cookies)
-        return
-    _login_aleado(client)
-
-
+    print(f"DEBUG: [ScraperAPI] Пытаюсь залогинить новый акк: {ALEADO_USERNAME}")
+    
+    # Используем нашу обертку _fetch_aleado_page, которую мы правили выше
+    try:
+        response = _fetch_aleado_page(login_url, method="POST", data=payload)
+        
+        # Проверяем успешность (Aleado обычно пишет "Вы успешно вошли" или редиректит)
+        if "Вы успешно вошли" in response.text or response.status_code in [200, 302]:
+            if "Логин заблокирован" in response.text:
+                print("ERROR: Новый аккаунт ТОЖЕ в бане! Проверь IP/Прокси.")
+                return False
+                
+            print("DEBUG: Логин успешен! Сессия обновлена.")
+            # Куки сохранятся автоматически внутри _fetch_aleado_page в кэш
+            return True
+            
+        print(f"DEBUG: Логин не удался. Статус: {response.status_code}")
+        return False
+    except Exception as e:
+        print(f"ERROR: Ошибка при логине: {e}")
+        return False
+    
 def _fetch_aleado_page(
     path: str,
-    params: dict[str, Any] | list[tuple[str, Any]] | None = None,
+    params: Any | None = None,
     *,
     method: str = "GET",
-    data: dict[str, Any] | list[tuple[str, Any]] | None = None,
+    data: dict[str, Any] | None = None,
 ) -> httpx.Response:
-    with _aleado_session_context() as client:
-        _ensure_aleado_session(client)
+    SCRAPER_API_KEY = "178f6d0838546b7e6f191c07c8663b8a"
+    target_url = _absolute_aleado_url(path)
+    
+    # 1. Жесткая очистка параметров
+    clean_params = {}
+    if params:
+        items = params if isinstance(params, list) else params.items()
+        for k, v in items:
+            if v is not None and str(v).lower() != "none" and str(v).strip() != "":
+                clean_params[str(k)] = str(v)
 
-        if method.upper() == "POST":
-            response = client.post(_absolute_aleado_url(path), params=params, data=data)
-        else:
-            response = client.get(_absolute_aleado_url(path), params=params)
-        if response.status_code in {401, 403} or _is_guest_page(response.text, str(response.url)):
-            _login_aleado(client)
-            if method.upper() == "POST":
-                response = client.post(_absolute_aleado_url(path), params=params, data=data)
-            else:
-                if search_type == "stats":
-                    response = client.post(
-                        _absolute_aleado_url(path),
-                        data=_build_stats_search_payload(brand_id, model_id),
-                    )
-                else:
-                    response = client.get(_absolute_aleado_url(path), params=params)
+    # 2. Проверка сессии и защита от рекурсии
+    is_login_request = "project/login" in path or "project/login" in target_url
+    
+    # Инициализация кэша, если он пуст (фикс 'NoneType' error)
+    if "_ALEADO_SESSION_CACHE" not in globals():
+        global _ALEADO_SESSION_CACHE
+        _ALEADO_SESSION_CACHE = {"cookies": {}, "timestamp": 0}
+    
+    if not _ALEADO_SESSION_CACHE.get("cookies") and not is_login_request:
+        print("DEBUG: Куки отсутствуют. Запускаю принудительный логин...")
+        with httpx.Client(timeout=90.0) as auth_client:
+            _login_aleado(auth_client)
 
-        response.raise_for_status()
-        if _is_guest_page(response.text, str(response.url)):
-            raise RuntimeError("Aleado returned guest page instead of authenticated content")
+    # 3. Подготовка кук
+    cached_cookies = _ALEADO_SESSION_CACHE.get("cookies") or {}
+    cookie_string = "; ".join([f"{k}={v}" for k, v in cached_cookies.items()])
 
-        _cache_aleado_session(client)
+    # 4. Сборка финального целевого URL
+    url_parts = list(urlparse(target_url))
+    query = dict(parse_qsl(url_parts[4]))
+    query.update(clean_params)
+    url_parts[4] = urlencode(query)
+    final_target_url = urlunparse(url_parts)
+
+    # 5. Настройка ScraperAPI
+    proxy_params = {
+        "api_key": SCRAPER_API_KEY,
+        "url": final_target_url,
+        "keep_headers": "true",
+    }
+    
+    # render=true только для поиска (GET), для логина (POST) — выключаем
+    if method == "GET" and not is_login_request:
+        proxy_params["render"] = "true"
+
+    headers = dict(ALEADO_HEADERS)
+    if cookie_string:
+        headers["Cookie"] = cookie_string
+
+    print(f"DEBUG: [ScraperAPI] {method} -> {final_target_url}")
+    
+    try:
+        response = httpx.request(
+            method,
+            "http://api.scraperapi.com", 
+            params=proxy_params, 
+            headers=headers,
+            data=data,
+            timeout=120.0,
+            follow_redirects=True
+        )
+
+        # 6. КРИТИЧНО: Безопасное сохранение кук (фикс 'NoneType' object assignment)
+        if response.cookies:
+            if "cookies" not in _ALEADO_SESSION_CACHE or _ALEADO_SESSION_CACHE["cookies"] is None:
+                _ALEADO_SESSION_CACHE["cookies"] = {}
+                
+            for key, value in response.cookies.items():
+                _ALEADO_SESSION_CACHE["cookies"][key] = value
+                
+            _ALEADO_SESSION_CACHE["timestamp"] = time.time()
+            print(f"DEBUG: Обновлено кук из ответа: {len(response.cookies)}")
+
+        # 7. Проверка на вылет из системы
+        low_text = response.text.lower()
+        if "вход" in low_text and ("username" in low_text or "password" in low_text):
+            if not is_login_request:
+                print("DEBUG: [!] Обнаружена форма входа. Сброс сессии.")
+                _ALEADO_SESSION_CACHE["cookies"] = {}
+                _ALEADO_SESSION_CACHE["timestamp"] = 0
+        
         return response
 
-
+    except Exception as exc:
+        print(f"ERROR: [ScraperAPI] Request failed: {exc}")
+        # Возвращаем пустой объект ответа, чтобы код не падал дальше
+        return httpx.Response(500, content=b"Internal Scraper Error")
+    
 def get_euro_rate() -> float:
     current_time = time.time()
     if current_time - _EUR_CACHE["timestamp"] < 3600:
@@ -677,26 +777,39 @@ def _contains_no_results_marker(text: str) -> bool:
 
 def _find_lot_candidate_rows(soup: BeautifulSoup) -> list[Any]:
     candidates: list[Any] = []
+    all_rows = soup.find_all("tr")
+    
+    # DEBUG: Проверим, видит ли BeautifulSoup таблицу вообще
+    if not all_rows:
+        print("DEBUG: [!] В полученном HTML вообще не найдено тегов <tr>. Проверь структуру страницы.")
+        return []
 
-    for row in soup.find_all("tr"):
+    for row in all_rows:
+        # 1. Поиск по ссылке на лот (самый надежный способ)
         if row.find("a", href=re.compile(r"project/(lot|statslot)", re.IGNORECASE)):
             candidates.append(row)
             continue
 
+        # 2. Поиск по полю ввода цены (обычно есть в таблицах аукционов)
         if row.find("input", attrs={"name": re.compile(r"priceLot[ES]\d+", re.IGNORECASE)}):
             candidates.append(row)
             continue
 
+        # 3. Поиск по превью изображения
         if row.find("img", attrs={"name": re.compile(r"img_preview", re.IGNORECASE)}):
             candidates.append(row)
             continue
 
+        # 4. Поиск по количеству ячеек (запасной вариант)
         cells = row.find_all("td")
-        if len(cells) >= 18:
+        if len(cells) >= 15: # Уменьшил до 15 на случай, если Aleado скрыл пару колонок
             lot_text = cells[1].get_text(" ", strip=True) if len(cells) > 1 else ""
-            if re.fullmatch(r"\d+", re.sub(r"\s+", "", lot_text)):
+            # Очищаем текст от лишних символов и проверяем, похоже ли это на ID лота
+            clean_lot_text = re.sub(r"\s+", "", lot_text)
+            if re.fullmatch(r"\d+", clean_lot_text):
                 candidates.append(row)
 
+    print(f"DEBUG: Найдено потенциальных строк лотов: {len(candidates)} (из {len(all_rows)} всего <tr>)")
     return candidates
 
 
@@ -891,7 +1004,6 @@ def decode_sajax_result(response_text: str) -> str:
 
     return response_text
 
-
 def call_aleado_sajax(
     func_name: str,
     args: list[Any],
@@ -899,15 +1011,14 @@ def call_aleado_sajax(
     method: str = "GET",
     base_params: dict[str, str] | None = None,
 ) -> str:
-    """Emulate Aleado's Sajax mechanism."""
-    # Sajax expects arguments in a specific format in the query string or POST body:
-    # rs=func_name&rsargs[]=arg1&rsargs[]=arg2...
-    params = []
+    """Emulate Aleado's Sajax mechanism via ScraperAPI."""
+    # Формируем параметры для Sajax (как это делает сайт в JS)
+    params_list = []
     if base_params:
         for k, v in base_params.items():
-            params.append((k, v))
+            params_list.append((k, v))
 
-    params.extend(
+    params_list.extend(
         [
             ("rs", func_name),
             ("rst", ""),
@@ -916,33 +1027,25 @@ def call_aleado_sajax(
     )
 
     for arg in args:
-        params.append(("rsargs[]", str(arg)))
+        params_list.append(("rsargs[]", str(arg)))
 
-    with _aleado_session_context() as client:
-        _ensure_aleado_session(client)
+    # Превращаем список кортежей в обычный словарь для передачи в _fetch_aleado_page
+    final_params = dict(params_list)
 
-        url = _absolute_aleado_url(path)
-        try:
-            if method.upper() == "GET":
-                response = client.get(url, params=params)
-            else:
-                response = client.post(url, data=params)
-
-            if response.status_code in {401, 403} or _is_guest_page(
-                response.text, str(response.url)
-            ):
-                _login_aleado(client)
-                if method.upper() == "GET":
-                    response = client.get(url, params=params)
-                else:
-                    response = client.post(url, data=params)
-
-            response.raise_for_status()
-            _cache_aleado_session(client)
-            return decode_sajax_result(response.text)
-        except Exception as exc:
-            print(f"DEBUG: Aleado Sajax call {func_name} failed: {exc}")
-            return ""
+    try:
+        # Используем твою новую функцию, которая идет через ScraperAPI
+        # Мы игнорируем method (делаем всё через GET), так как ScraperAPI 
+        # проще всего прокидывает параметры через URL.
+        response = _fetch_aleado_page(path, params=final_params)
+        
+        response.raise_for_status()
+        
+        # Декодируем специфичный ответ Aleado (res = '...')
+        return decode_sajax_result(response.text)
+        
+    except Exception as exc:
+        print(f"DEBUG: Aleado Sajax call {func_name} failed: {exc}")
+        return ""
 
 
 def _get_lot_cache_key(detail_link: str) -> str:
@@ -1555,23 +1658,28 @@ def _fetch_aleado_data_single_page(
         response = _fetch_aleado_page(path, **request_kwargs)
         
         # Check for login redirection
-        if "Вход" in response.text and (("username" in response.text) or ("password" in response.text)):
+       # Check for login redirection
+        if "Вход" in response.text or "username" in response.text or "password" in response.text:
             print("DEBUG: Aleado search failed - redirected to login. Re-authenticating...")
+            
+            # 1. Принудительно вызываем логин (он должен быть переписан под ScraperAPI!)
             with _aleado_session_context() as client:
                 _login_aleado(client)
-                if search_type == "stats":
-                    response = client.post(
-                        _absolute_aleado_url(path),
-                        data=_build_stats_search_payload(
-                            brand_id,
-                            model_id,
-                            result_filter=result_filter,
-                            page=page,
-                            page_size=page_size,
-                        ),
-                    )
-                else:
-                    response = client.get(_absolute_aleado_url(path), params=params)
+            
+            # 2. ПОВТОРНЫЙ ЗАПРОС ДОЛЖЕН ИДТИ ЧЕРЕЗ _fetch_aleado_page, а не через client!
+            if search_type == "stats":
+                # Если это статистика, отправляем POST через наш прокси-метод
+                payload = _build_stats_search_payload(
+                    brand_id,
+                    model_id,
+                    result_filter=result_filter,
+                    page=page,
+                    page_size=page_size,
+                )
+                response = _fetch_aleado_page(path, method="POST", data=payload)
+            else:
+                # Если это обычный аукцион, отправляем GET через наш прокси-метод
+                response = _fetch_aleado_page(path, params=params)
 
         soup = BeautifulSoup(response.text, "html.parser")
 
