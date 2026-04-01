@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  isSuspiciousBackendBrandOptions,
+  isSuspiciousBackendModelOptions,
   normalizeBodyResponse,
   normalizeBrandResponse,
   normalizeModelResponse,
@@ -40,6 +42,27 @@ describe('catalog filter helpers', () => {
     ])
   })
 
+  it('collapses model variants under the base family when the base model exists', () => {
+    expect(
+      normalizeModelResponse(
+        {
+          results: [
+            { id: '100', name: 'Civic' },
+            { id: '101', name: 'Civic Type R' },
+          ],
+        },
+        'HONDA',
+      ),
+    ).toEqual([
+      {
+        brand: 'HONDA',
+        model: '100',
+        modelDisplay: 'Civic',
+        modelSlug: 'civic',
+      },
+    ])
+  })
+
   it('drops placeholder body values', () => {
     expect(
       normalizeBodyResponse({
@@ -49,6 +72,28 @@ describe('catalog filter helpers', () => {
         ],
       }),
     ).toEqual([{ body: 'ZVW41', label: 'ZVW41', count: undefined }])
+  })
+
+  it('detects the truncated backend fallback brand set', () => {
+    expect(
+      isSuspiciousBackendBrandOptions([
+        { brand: '9', brandName: 'Toyota' },
+        { brand: '2', brandName: 'Honda' },
+        { brand: '11', brandName: 'Nissan' },
+        { brand: '6', brandName: 'Mazda' },
+        { brand: '8', brandName: 'Subaru' },
+      ]),
+    ).toBe(true)
+  })
+
+  it('detects the truncated backend fallback model set', () => {
+    expect(
+      isSuspiciousBackendModelOptions([
+        { brand: '9', model: '2236', modelDisplay: 'N BOX', modelSlug: 'n-box' },
+        { brand: '9', model: '109', modelDisplay: 'FIT', modelSlug: 'fit' },
+        { brand: '9', model: '71', modelDisplay: 'STEPWGN', modelSlug: 'stepwgn' },
+      ]),
+    ).toBe(true)
   })
 })
 

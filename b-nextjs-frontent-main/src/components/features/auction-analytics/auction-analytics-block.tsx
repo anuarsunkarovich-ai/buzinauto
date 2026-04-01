@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { CarCarouselOnHoverCard } from '@/components/features/car-carousel/car-carousel-on-hover-card'
 import { CarVisibleCard } from '@/components/features/car-carousel/car-visible-card'
 import { QueryPagination } from '@/components/features/query-pagination'
+import { buildPrefetchedCalculation } from '@/lib/mappers/fastapi-car.mapper'
 import { getAuctionStats } from '@/lib/services/auction-stats.service'
 import { toUrlSlug } from '@/lib/transform'
 import { PriceCalculatorFallback } from './price-calculator'
@@ -179,6 +180,16 @@ export const AuctionAnalyticsBlock = async ({
             const saleStatus = String(lot.sale_status || '').trim()
             const { badgeLabel, badgeClass } = getLotStatus(saleStatus)
             const resultTag = saleStatus ? `${saleStatus} ${lot.auction_date}` : lot.auction_date
+            const initialTotalRub = Number(lot.total_rub ?? lot.price_rub ?? 0)
+            const prefetchedCalculation = buildPrefetchedCalculation(
+              {
+                ...lot,
+                price_jpy: lot.price_jpy,
+                average_price_jpy: lot.average_price_jpy,
+                calculation_price_jpy: lot.calculation_price_jpy,
+              },
+              initialTotalRub,
+            )
 
             return (
               <div key={lot.lot} className="group relative flex h-full w-full flex-col">
@@ -218,7 +229,8 @@ export const AuctionAnalyticsBlock = async ({
                     rating={lot.grade}
                     images={[{ src: lot.image_url || '/static/img/loading72.gif', alt: lot.model }]}
                     auctionDate={lot.auction_date}
-                    initialTotalRub={Number(lot.total_rub ?? lot.price_rub ?? 0)}
+                    initialTotalRub={initialTotalRub}
+                    prefetchedCalculation={prefetchedCalculation}
                   />
                 </CarCarouselOnHoverCard>
                 <div className="pointer-events-none absolute top-2 left-2 z-10">

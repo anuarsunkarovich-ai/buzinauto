@@ -1,5 +1,10 @@
 export type PrefetchedCalculation = {
   totalRub?: number
+  carPriceRub?: number
+  carPriceJpy?: number
+  lotPriceJpy?: number
+  averagePriceJpy?: number
+  priceSource?: string
   commercialRate?: number
   bankBuyRate?: number
   bankSellRate?: number

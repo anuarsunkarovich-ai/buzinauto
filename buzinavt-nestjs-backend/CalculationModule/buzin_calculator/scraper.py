@@ -1120,6 +1120,32 @@ def _extract_horsepower_from_detail_text(detail_soup: BeautifulSoup) -> int:
     return 0
 
 
+def _extract_engine_cc_from_detail_text(detail_soup: BeautifulSoup) -> int:
+    if not detail_soup:
+        return 0
+
+    detail_text = html.unescape(detail_soup.get_text(" ", strip=True) or "")
+    if not detail_text:
+        return 0
+
+    patterns = (
+        r"(?:об[ъь]ем(?:\s+двигателя)?|двигатель|displacement|engine)\s*[:\-]?\s*(\d{3,5})\s*(?:cc|см3|см\.?куб\.?)?",
+        r"(?:排気量)\s*[:\-]?\s*(\d{3,5})",
+        r"(\d{3,5})\s*(?:cc|см3)\b",
+    )
+
+    for pattern in patterns:
+        match = re.search(pattern, detail_text, re.IGNORECASE)
+        if not match:
+            continue
+
+        engine_cc = _extract_first_number(match.group(1))
+        if 500 <= engine_cc <= 10000:
+            return engine_cc
+
+    return 0
+
+
 def _extract_calc_src_from_detail(detail_soup: BeautifulSoup) -> str:
     if not detail_soup:
         return ""
@@ -1395,6 +1421,19 @@ def _find_horsepower_from_calc_src(calc_src: str) -> int:
     return int(modifications[0].get("horsepower") or 0)
 
 
+def _find_engine_cc_from_calc_src(calc_src: str) -> int:
+    if not calc_src:
+        return 0
+
+    parsed_calc = urlparse(calc_src)
+    calc_params = dict(parse_qsl(parsed_calc.query, keep_blank_values=True))
+    displacement = _extract_first_number(str(calc_params.get("disp") or ""))
+    if 500 <= displacement <= 10000:
+        return displacement
+
+    return 0
+
+
 def infer_horsepower_from_identifiers(
     *,
     model_code: str = "",
@@ -1457,6 +1496,7 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
         return {
             "average_price_jpy": 0,
             "horsepower": 0,
+            "engine_cc": 0,
             "image_url": "",
             "image_urls": [],
             "auction_sheet_url": "",
@@ -1476,6 +1516,9 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
         detail_soup = BeautifulSoup(detail_response.text, "html.parser")
         image_urls = _extract_photo_urls_from_detail(detail_soup)
         calc_src = _extract_calc_src_from_detail(detail_soup)
+        engine_cc = _find_engine_cc_from_calc_src(calc_src)
+        if engine_cc <= 0:
+            engine_cc = _extract_engine_cc_from_detail_text(detail_soup)
         horsepower = _find_horsepower_from_calc_src(calc_src)
         if horsepower <= 0:
             horsepower = _extract_horsepower_from_detail_text(detail_soup)
@@ -1536,6 +1579,7 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
         payload = {
             "average_price_jpy": average_price,
             "horsepower": horsepower,
+            "engine_cc": engine_cc,
             "image_url": ordered_images[0] if ordered_images else "",
             "image_urls": ordered_images,
             "auction_sheet_url": auction_sheet_url,
@@ -1547,6 +1591,7 @@ def fetch_aleado_lot_details(detail_link: str) -> dict[str, Any]:
         return {
             "average_price_jpy": 0,
             "horsepower": 0,
+            "engine_cc": 0,
             "image_url": "",
             "image_urls": [],
             "auction_sheet_url": "",
@@ -1788,7 +1833,10 @@ def _fetch_aleado_data_single_page(
         return cars
     except Exception as exc:
         print(f"DEBUG: Aleado scrape failed: {exc}")
-        return []
+        raise RuntimeError(
+            f"Aleado scrape failed for brand={brand_id}, model={model_id or 'ALL'}, "
+            f"search_type={search_type}, page={page}: {exc}"
+        ) from exc
 
 
 def fetch_aleado_data(

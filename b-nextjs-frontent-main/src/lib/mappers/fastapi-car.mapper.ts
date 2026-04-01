@@ -65,32 +65,53 @@ export const buildFastApiCarImages = (
   }))
 }
 
-const buildPrefetchedCalculation = (
+export const buildPrefetchedCalculation = (
   car: FastApiSearchCar,
   initialTotalRub: number,
-): PrefetchedCalculation | undefined =>
-  car.price_details || initialTotalRub > 0
-    ? {
-        totalRub: initialTotalRub > 0 ? initialTotalRub : undefined,
-        commercialRate:
-          car.price_details?.bank_buy_rate ??
-          car.price_details?.exchange_rate ??
-          car.price_details?.bank_sell_rate,
-        bankBuyRate: car.price_details?.bank_buy_rate,
-        bankSellRate: car.price_details?.bank_sell_rate,
-        rateDate: car.price_details?.rate_date,
-        breakdown: car.price_details
-          ? {
-              buyAndDeliveryRub: car.price_details.buy_and_delivery_rub,
-              buyAndDeliveryJpy: car.price_details.buy_and_delivery_jpy,
-              customsBrokerRub: car.price_details.customs_broker_rub,
-              customsDutyRub: car.price_details.customs_duty_rub,
-              utilFeeRub: car.price_details.util_fee_rub,
-              companyCommission: car.price_details.company_commission,
-            }
-          : undefined,
-      }
-    : undefined
+): PrefetchedCalculation | undefined => {
+  const commercialRate =
+    car.price_details?.bank_buy_rate ??
+    car.price_details?.exchange_rate ??
+    car.price_details?.bank_sell_rate
+  const carPriceJpy = Number(
+    car.price_details?.car_price_jpy ??
+      car.calculation_price_jpy ??
+      car.average_price_jpy ??
+      car.price_jpy ??
+      0,
+  )
+  const totalRub = Number(car.price_details?.total_rub ?? initialTotalRub ?? 0)
+
+  if (!car.price_details && totalRub <= 0) {
+    return undefined
+  }
+
+  return {
+    totalRub: totalRub > 0 ? totalRub : undefined,
+    carPriceRub:
+      Number(car.price_details?.car_price_rub ?? 0) ||
+      (carPriceJpy > 0 && commercialRate ? Math.round(carPriceJpy * commercialRate) : undefined),
+    carPriceJpy: carPriceJpy > 0 ? carPriceJpy : undefined,
+    lotPriceJpy: Number(car.price_details?.lot_price_jpy ?? car.price_jpy ?? 0) || undefined,
+    averagePriceJpy:
+      Number(car.price_details?.average_price_jpy ?? car.average_price_jpy ?? 0) || undefined,
+    priceSource: car.price_source,
+    commercialRate,
+    bankBuyRate: car.price_details?.bank_buy_rate,
+    bankSellRate: car.price_details?.bank_sell_rate,
+    rateDate: car.price_details?.rate_date,
+    breakdown: car.price_details
+      ? {
+          buyAndDeliveryRub: car.price_details.buy_and_delivery_rub,
+          buyAndDeliveryJpy: car.price_details.buy_and_delivery_jpy,
+          customsBrokerRub: car.price_details.customs_broker_rub,
+          customsDutyRub: car.price_details.customs_duty_rub,
+          utilFeeRub: car.price_details.util_fee_rub,
+          companyCommission: car.price_details.company_commission,
+        }
+      : undefined,
+  }
+}
 
 export const mapFastApiCarToVisibleCard = (
   car: FastApiSearchCar,

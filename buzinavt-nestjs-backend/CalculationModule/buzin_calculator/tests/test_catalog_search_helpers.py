@@ -1,6 +1,7 @@
 from pathlib import Path
 import sys
 import unittest
+import asyncio
 from unittest.mock import patch
 
 
@@ -11,6 +12,7 @@ if str(ROOT) not in sys.path:
 from main import (  # noqa: E402
     _build_pagination_info,
     _build_empty_search_payload,
+    _fetch_aleado_data_for_models,
     _paginate_items,
     _resolve_average_price_jpy,
     resolve_aleado_ids,
@@ -140,6 +142,36 @@ class CatalogSearchHelpersTests(unittest.TestCase):
         self.assertEqual(brand_id, "14")
         self.assertEqual(model_id, "1030")
         self.assertTrue(matched)
+
+    @patch("main.fetch_aleado_data")
+    def test_fetch_aleado_data_for_models_raises_when_all_batches_fail(self, mock_fetch_aleado_data) -> None:
+        mock_fetch_aleado_data.side_effect = RuntimeError("guest page returned")
+
+        with self.assertRaises(RuntimeError):
+            asyncio.run(
+                _fetch_aleado_data_for_models(
+                    "2",
+                    ["125", "124"],
+                    search_type="stats",
+                )
+            )
+
+    @patch("main.fetch_aleado_data")
+    def test_fetch_aleado_data_for_models_keeps_successful_batches(self, mock_fetch_aleado_data) -> None:
+        mock_fetch_aleado_data.side_effect = [
+            RuntimeError("guest page returned"),
+            [{"lot": "123"}],
+        ]
+
+        result = asyncio.run(
+            _fetch_aleado_data_for_models(
+                "2",
+                ["125", "124"],
+                search_type="stats",
+            )
+        )
+
+        self.assertEqual(result, [{"lot": "123"}])
 
 
 if __name__ == "__main__":

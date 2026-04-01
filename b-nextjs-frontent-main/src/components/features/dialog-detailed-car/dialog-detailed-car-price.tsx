@@ -68,6 +68,10 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
       return 0
     }
 
+    if ((prefetchedCalculation.carPriceRub || 0) > 0) {
+      return Math.round(prefetchedCalculation.carPriceRub || 0)
+    }
+
     return Math.max(
       0,
       Math.round(
@@ -122,6 +126,7 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
     prefetchedCalculation?.bankSellRate ||
     commercialRate
 
+  const effectiveCarPriceJpy = Math.round(prefetchedCalculation?.carPriceJpy || carPrice || 0)
   const effectiveBuyAndDeliveryJpy =
     prefetchedCalculation?.breakdown?.buyAndDeliveryJpy ?? buyAndDeliveryJpy
   const effectiveRateDate = prefetchedCalculation?.rateDate || rateDate
@@ -254,10 +259,10 @@ export const DialogDetailedCarPrice: React.FC<DialogDetailedCarPricePropsTypes> 
                   >
                     <div className="flex flex-col items-center gap-1">
                       <Money amount={moneyRub} />
-                      {isAuctionPriceRow && carPrice > 0 && (
+                      {isAuctionPriceRow && effectiveCarPriceJpy > 0 && (
                         <>
                           <Text as="small" className="text-muted-foreground">
-                            {carPrice.toLocaleString('ru-RU')} ¥
+                            {effectiveCarPriceJpy.toLocaleString('ru-RU')} ¥
                           </Text>
                           {effectiveCommercialRate && (
                             <Text as="small" className="text-center text-muted-foreground">
