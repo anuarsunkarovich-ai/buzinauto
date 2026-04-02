@@ -5,6 +5,7 @@ from collections import Counter
 import httpx
 import asyncio
 from datetime import date, datetime, timedelta
+import os
 import re
 
 from fastapi import FastAPI, HTTPException, Query
@@ -30,11 +31,33 @@ from scraper import (
     infer_horsepower_from_identifiers,
 )
 
+
+def _split_csv_env(value: str) -> list[str]:
+    return [item.strip().rstrip("/") for item in value.split(",") if item.strip()]
+
+
+def _get_allowed_origins() -> list[str]:
+    origins = {
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    }
+
+    frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+    if frontend_url:
+        origins.add(frontend_url)
+
+    origins.update(_split_csv_env(os.getenv("ALLOWED_ORIGINS", "")))
+    return sorted(origins)
+
+
+ALLOW_ORIGIN_REGEX = os.getenv("ALLOW_ORIGIN_REGEX", "").strip() or None
+
 app = FastAPI(title="Buzinavto Calc API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_get_allowed_origins(),
+    allow_origin_regex=ALLOW_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

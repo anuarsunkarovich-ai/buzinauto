@@ -2,6 +2,11 @@
 
 This repository contains the buyer-facing frontend and the supporting backend services used by the Japan catalog, calculator, and stats pages.
 
+For the easiest low-cost deployment path, see:
+
+- `DEPLOY_FREE.md` for Vercel + Render + MongoDB Atlas
+- `render.yaml` for the Render API service blueprint
+
 ## Project Layout
 
 - `b-nextjs-frontent-main` - Next.js frontend running on port `3000`

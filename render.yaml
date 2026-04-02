@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: buzinavto-calc-api
+    runtime: python
+    plan: free
+    rootDir: buzinavt-nestjs-backend/CalculationModule/buzin_calculator
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: ALLOW_ORIGIN_REGEX
+        value: https://.*\.vercel\.app
+      - key: ALEADO_USERNAME
+        sync: false
+      - key: ALEADO_PASSWORD
+        sync: false

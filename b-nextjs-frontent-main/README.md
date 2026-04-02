@@ -3,6 +3,7 @@
 The actual deployment instructions for this project live in the root guide:
 
 - [Root README](/C:/Users/Anek/BuzinAvto/README.md)
+- [Free Deployment Guide](/C:/Users/Anek/BuzinAvto/DEPLOY_FREE.md)
 
 ## Quick Start
 

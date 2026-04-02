@@ -1,5 +1,29 @@
 import { withPayload } from '@payloadcms/next/withPayload'
 
+const getUploadsRemotePattern = () => {
+  const value = process.env.UPLOADS_PUBLIC_URL
+
+  if (!value) {
+    return null
+  }
+
+  try {
+    const parsed = new URL(value)
+    const normalizedPath = parsed.pathname.replace(/\/+$/, '')
+
+    return {
+      protocol: parsed.protocol.replace(':', ''),
+      hostname: parsed.hostname,
+      port: parsed.port || undefined,
+      pathname: `${normalizedPath || ''}/**`,
+    }
+  } catch {
+    return null
+  }
+}
+
+const uploadsRemotePattern = getUploadsRemotePattern()
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -34,6 +58,7 @@ const nextConfig = {
         hostname: 'auctions.aleado.ru',
         pathname: '/**',
       },
+      ...(uploadsRemotePattern ? [uploadsRemotePattern] : []),
     ],
   },
 }
